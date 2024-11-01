@@ -1,0 +1,14 @@
+name: pcprophet_env
+channels:
+    - conda-forge
+    - defaults
+dependencies:
+    - python=3.6
+    - numpy=1.19.5
+    - scipy=1.3.1
+    - pandas=0.25.3
+    - scikit-learn=0.23.2
+    - networkx=2.4
+    - matplotlib=3.1.1
+    - dask=2.30.0
+    - black=22.6.0
