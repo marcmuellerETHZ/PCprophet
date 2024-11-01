@@ -21,6 +21,8 @@ from PCprophet import plots as plots
 
 from PCprophet import validate_input as validate
 
+from datetime import datetime
+
 
 class ParserHelper(argparse.ArgumentParser):
     def error(self, message):
@@ -32,6 +34,31 @@ class ParserHelper(argparse.ArgumentParser):
 # TODO check os
 def get_os():
     return platform.system()
+
+def setup_output_directory(base_output, sid_file):
+    # Ensure base output folder exists
+    if not os.path.exists(base_output):
+        os.makedirs(base_output)
+
+    # Extract run name from sid_file (e.g., "test1" from "test/test1.txt")
+    run_name = os.path.splitext(os.path.basename(sid_file))[0]
+
+    # Get current datetime
+    current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Create run folder in Output (e.g. 20241101_103412_test1)
+    run_folder = f"{current_datetime}_{run_name}"
+
+    # Create full run path (e.g. Output/20241101_103412_test1)
+    full_run_path = os.path.join(base_output, run_folder)
+
+    # Create tmp folder within run path
+    run_temp_folder = os.path.join(full_run_path, 'tmp')
+
+    # Create the unique run folder with tmp inside
+    os.makedirs(run_temp_folder, exist_ok=True)
+
+    return full_run_path, run_temp_folder
 
 
 def create_config():
@@ -61,7 +88,13 @@ def create_config():
         default=r'./Output',
         action='store',
     )
-    # TODO change tmp to Output/tmp check resource_path important for windows
+    parser.add_argument(
+        '-run_name',
+        help='Custom name for the run folder in Output',
+        dest='run_name',
+        default='default',
+        action='store',
+    )
     parser.add_argument(
         '-cal',
         help='calibration file no headers tab delimited fractiosn to mw in KDa',
@@ -137,6 +170,7 @@ def create_config():
                         dest='skip',
                         help='Skip feature generation and complex prediction step',action='store',
                         default=False)
+    
     args = parser.parse_args()
 
     # deal with numpy warnings and so on
@@ -146,6 +180,10 @@ def create_config():
         pass
         # print them
 
+    # Call setup_output_directory with parsed arguments
+    output_folder, tmp_folder = setup_output_directory(base_output=args.out_folder, sid_file=args.sample_ids)
+    
+
     # create config file
     config = configparser.ConfigParser()
     config['GLOBAL'] = {
@@ -153,10 +191,10 @@ def create_config():
         'sid': args.sample_ids,
         'go_obo': io.resource_path('go-basic.obo'),
         'sp_go': io.resource_path('tmp_GO_sp_only.txt'),
-        'output': args.out_folder,
+        'output': output_folder,
         'cal': args.calibration,
         'mw': args.mwuni,
-        'temp': r'./tmp',
+        'temp': tmp_folder,
         'mult': args.multi,
         'skip': args.skip
     }
@@ -184,21 +222,25 @@ def create_config():
     return config
 
 
-def preprocessing(infile, config):
+def preprocessing(infile, config, tmp_folder):
     #validate.InputTester(infile, 'in').test_file()
+
+    # sample specific folder
+    tmp_folder = io.file2folder(infile, tmp_folder=tmp_folder)
+
     map_to_database.runner(
         infile=infile,
         db=config['GLOBAL']['db'],
         is_ppi=config['PREPROCESS']['is_ppi'],
         use_fr=config['PREPROCESS']['all_fract'],
+        tmp_folder=tmp_folder,
     )
     hypothesis.runner(
         infile=infile,
         hypothesis=config['PREPROCESS']['merge'],
-        use_fr=config['PREPROCESS']['all_fract'],
+        use_fr=config['PREPROCESS']['all_fract'], 
+        tmp_folder=tmp_folder,
     )
-    #  # sample specific folder
-    tmp_folder = io.file2folder(infile, prefix=config['GLOBAL']['temp'])
     merge.runner(base=tmp_folder, mergemode=config['PREPROCESS']['merge'])
     generate_features.runner(
         tmp_folder,
@@ -218,7 +260,7 @@ def main():
     files = [os.path.abspath(x) for x in files.keys()]
     # skip feature generation
     if config['GLOBAL']['skip'] == 'False':
-        [preprocessing(infile, config) for infile in files]
+        [preprocessing(infile, config, config['GLOBAL']['temp']) for infile in files]
     collapse.runner(
         config['GLOBAL']['temp'],
         config['GLOBAL']['sid'],

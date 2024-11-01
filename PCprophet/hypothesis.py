@@ -130,14 +130,14 @@ def collapse_prot(infile, use):
     return hypo_df, pr_df
 
 
-def runner(infile, hypothesis, use_fr):
+def runner(infile, hypothesis, use_fr, tmp_folder):
     """
     generate hypothesis from infile using all fract fractions and max hypo nr
     """
     if hypothesis == "all":
         print("Generating hypothesis for " + infile)
         hypo, df_s = collapse_prot(infile=infile, use=use_fr)
-        base = io.file2folder(infile, prefix="./tmp/")
+        base = io.file2folder(infile, tmp_folder=tmp_folder)
         # nm = os.path.join(base, "hypo.txt")
         hypo.reset_index(inplace=True)
         hypo.columns = ["MB", "FT", "ID"]

@@ -323,10 +323,20 @@ def create_db_from_cluster(nodes, clusters):
     return True
 
 
-def file2folder(file_, prefix="./tmp/"):
-    # we are already stripping the extension
+def file2folder(file_, tmp_folder):
+    # Extract the filename without extension
     filename = os.path.splitext(os.path.basename(file_))[0]
-    return os.path.join(prefix, filename)
+    
+     # Check if the filename is already part of the tmp_folder path
+    if tmp_folder.endswith(filename):
+        full_path = tmp_folder  # Use tmp_folder as is if it already ends with filename
+    else:
+        # Otherwise, create a subdirectory within the provided tmp_folder
+        full_path = os.path.join(tmp_folder, filename)
+
+    os.makedirs(full_path, exist_ok=True)
+    
+    return full_path
 
 
 def resource_path(relative_path):

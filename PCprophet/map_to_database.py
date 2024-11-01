@@ -55,7 +55,7 @@ def optimize_mcl(matrix, results, clusters):
     return infl
 
 
-def runner(infile, db, is_ppi, use_fr):
+def runner(infile, db, is_ppi, use_fr, tmp_folder):
     """
     argv[1] = input name conv2gn out
     argv[2] = db
@@ -73,7 +73,7 @@ def runner(infile, db, is_ppi, use_fr):
     header = []
     temp = {}
     out = []
-    base = io.file2folder(infile, prefix="./tmp/")
+    base = io.file2folder(infile, tmp_folder=tmp_folder)
     # create tmp folder and subfolder with name
     if not os.path.isdir(base):
         os.makedirs(base)

@@ -6,6 +6,7 @@ import scipy.signal as signal
 import pandas as pd
 from scipy.ndimage import uniform_filter
 from dask import dataframe as dd
+from dask.diagnostics import ProgressBar
 
 import PCprophet.parse_go as go
 import PCprophet.io_ as io
@@ -392,28 +393,30 @@ def mp_cmplx(filename, goobj, gaf, mult):
         npartitions = 8
     sd = dd.from_pandas(df, npartitions=npartitions)
     print("calculating features for " + filename)
-    feats = pd.DataFrame(
-        sd.map_partitions(
-            lambda df: process_slice(df, goobj, gaf), meta=(None, "object")
+
+    with ProgressBar():
+        feats = pd.DataFrame(
+            sd.map_partitions(
+                lambda df: process_slice(df, goobj, gaf), meta=(None, "object")
+            )
+            .compute(scheduler="processes")
+            .values.tolist()
         )
-        .compute(scheduler="processes")
-        .values.tolist()
-    )
-    h = ["ID", "MB", "COR", "SHFT", "DIF", "W", "SC_CC", "SC_MF", "SC_BP", "TOTS"]
-    feats.columns = h
-    feats = feats[feats['ID']!=-1]
-    pks = pd.DataFrame(
-        sd.map_partitions(
-            lambda df: process_slice(df, None, None, "peak"), meta=(None, "object")
+        h = ["ID", "MB", "COR", "SHFT", "DIF", "W", "SC_CC", "SC_MF", "SC_BP", "TOTS"]
+        feats.columns = h
+        feats = feats[feats['ID']!=-1]
+        pks = pd.DataFrame(
+            sd.map_partitions(
+                lambda df: process_slice(df, None, None, "peak"), meta=(None, "object")
+            )
+            .compute(scheduler="processes")
+            .values.tolist()
         )
-        .compute(scheduler="processes")
-        .values.tolist()
-    )
-    pks = pks.apply(pd.Series.explode).reset_index()
-    pks.columns = ["index", "MB", "ID", "PKS", "SEL"]
-    pks = pks[pks['ID']!=-1]
-    pks.drop("index", axis=1, inplace=True)
-    return feats, pks
+        pks = pks.apply(pd.Series.explode).reset_index()
+        pks.columns = ["index", "MB", "ID", "PKS", "SEL"]
+        pks = pks[pks['ID']!=-1]
+        pks.drop("index", axis=1, inplace=True)
+        return feats, pks
 
 
 def runner(base, go_obo, tsp_go, mult):
