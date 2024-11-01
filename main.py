@@ -35,6 +35,9 @@ class ParserHelper(argparse.ArgumentParser):
 def get_os():
     return platform.system()
 
+
+# I reorganized the output directory, such that for each run a new sub-directory is created which holds the tmp folder and all other outputs. 
+# Moving the tmp folder ensures uniqueness and resolves an issue where the content of a previous run in tmp would cause an error.
 def setup_output_directory(base_output, sid_file):
     # Ensure base output folder exists
     if not os.path.exists(base_output):
@@ -158,12 +161,12 @@ def create_config():
     )
     parser.add_argument(
         '-mult',
-        help='Multi processing feature generation',
+        help='Number of cores for multi-processing feature generation (default: 8)',
         dest='multi',
-        action='store',
-        default='True',
-        choices=['True', 'False'],
+        type=int,           # Change to integer type
+        default=8           # Set default to 8 cores
     )
+    
     parser.add_argument('-w', dest='weight_pred', help='LEGACY', action='store', default=1, type=float)
     parser.add_argument('-v', dest='verbose', help='Verbose', action='store', default=1)
     parser.add_argument('-skip',

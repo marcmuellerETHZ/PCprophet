@@ -108,8 +108,8 @@ All of the above parameters have the following default settings
 | -is_ppi        | 'False'           |[True, False]                         |
 | -ma            | 'all'             |['all', 'reference']                  |
 | -co            | 'GO'              |['GO','SUPER','CAL','eCAL','PROB' 'NONE']|
-| -fdr           | 0.5               |0>x>1                                 |
-| -mult          | False             | [True, False]                        |
+| -fdr           | 0.5               |0<x<1                                 |
+| -mult          | 8                 |1<x<inf                               |
 | -v             | True              | [True, False]                        |
 | -skip          | False             | [True, False]                        |
 

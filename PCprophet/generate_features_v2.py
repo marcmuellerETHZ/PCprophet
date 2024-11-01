@@ -380,19 +380,19 @@ def mp_cmplx(filename, goobj, gaf, mult):
     shift peak
     width peak
     w = point for correlation
-    cor(A[idx:(idx + w)], B[idx:(idx+w)])
+    cor(A[idx:(idx + w)], B[idx:(idx + w)])
     width = fwhm(A[idx-q:idx+q])
     so q should be 1/2 of w
     """
     things, header = [], []
     temp = {}
     df = pd.read_csv(filename, sep="\t")
-    if mult == False:
-        npartitions = 1
-    else:
-        npartitions = 8
+    
+    # Use the 'mult' parameter directly as npartitions; default is 8
+    npartitions = max(1, int(mult))  # Ensure at least 1 partition
+    
     sd = dd.from_pandas(df, npartitions=npartitions)
-    print("calculating features for " + filename)
+    print(f"Calculating features for {filename} using {npartitions} partition(s).")
 
     with ProgressBar():
         feats = pd.DataFrame(
@@ -404,7 +404,8 @@ def mp_cmplx(filename, goobj, gaf, mult):
         )
         h = ["ID", "MB", "COR", "SHFT", "DIF", "W", "SC_CC", "SC_MF", "SC_BP", "TOTS"]
         feats.columns = h
-        feats = feats[feats['ID']!=-1]
+        feats = feats[feats['ID'] != -1]
+
         pks = pd.DataFrame(
             sd.map_partitions(
                 lambda df: process_slice(df, None, None, "peak"), meta=(None, "object")
@@ -414,9 +415,11 @@ def mp_cmplx(filename, goobj, gaf, mult):
         )
         pks = pks.apply(pd.Series.explode).reset_index()
         pks.columns = ["index", "MB", "ID", "PKS", "SEL"]
-        pks = pks[pks['ID']!=-1]
+        pks = pks[pks['ID'] != -1]
         pks.drop("index", axis=1, inplace=True)
-        return feats, pks
+
+    return feats, pks
+
 
 
 def runner(base, go_obo, tsp_go, mult):
