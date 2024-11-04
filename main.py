@@ -187,8 +187,9 @@ def create_config():
     # Call setup_output_directory with parsed arguments
     output_folder, tmp_folder = setup_output_directory(base_output=args.out_folder, sid_file=args.sample_ids)
 
-    # Set the environment variable for SLURM
-    os.environ['ANALYSIS_DIR'] = output_folder
+    # Write output folder directory to temporary file for slurm accession
+    with open("slurm_analysis_dir.sh", "w") as f:
+        f.write(f"export ANALYSIS_DIR={output_folder}\n")
     
 
     # create config file
