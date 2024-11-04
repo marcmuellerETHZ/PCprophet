@@ -6,6 +6,7 @@ import sys
 import os
 import platform
 import numpy as np
+import time
 
 
 # modules
@@ -185,6 +186,9 @@ def create_config():
 
     # Call setup_output_directory with parsed arguments
     output_folder, tmp_folder = setup_output_directory(base_output=args.out_folder, sid_file=args.sample_ids)
+
+    # Set the environment variable for SLURM
+    os.environ['ANALYSIS_DIR'] = output_folder
     
 
     # create config file
@@ -263,7 +267,11 @@ def main():
     files = [os.path.abspath(x) for x in files.keys()]
     # skip feature generation
     if config['GLOBAL']['skip'] == 'False':
+        # Track time for preprocessing step
+        start_time = time.time()
         [preprocessing(infile, config, config['GLOBAL']['temp']) for infile in files]
+        end_time = time.time()
+        print(f"Preprocessing took {end_time - start_time:.2f} seconds")
     collapse.runner(
         config['GLOBAL']['temp'],
         config['GLOBAL']['sid'],
