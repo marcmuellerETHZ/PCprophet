@@ -7,7 +7,7 @@ import os
 import platform
 import numpy as np
 import time
-
+import multiprocessing
 
 # modules
 from PCprophet import io_ as io
@@ -261,6 +261,7 @@ def preprocessing(infile, config, tmp_folder):
 
 
 def main():
+    print(f"Available cores: {multiprocessing.cpu_count()}")
     config = create_config()
     validate.InputTester(config['GLOBAL']['db'], 'db').test_file()
     validate.InputTester(config['GLOBAL']['sid'], 'ids').test_file()
