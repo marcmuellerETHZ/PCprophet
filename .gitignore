@@ -137,8 +137,8 @@ dmypy.json
 
 Input/
 Output/
-tmp/
-slurm/
+
+
 
 
 .Rhistory
@@ -163,3 +163,4 @@ PCprophet/tmp_GO_sp_only.txt
 ppi_db.txt
 ppi_PA_acc.txt
 sample_ids*
+slurm_*
