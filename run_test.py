@@ -83,6 +83,5 @@ def test_collapse():
 
 
 def main():
-
-if __name__ == '__main__':
-    main()
+    if __name__ == '__main__':
+        main()
