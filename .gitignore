@@ -138,6 +138,7 @@ dmypy.json
 Input/
 Output/
 tmp/
+slurm/
 
 
 .Rhistory

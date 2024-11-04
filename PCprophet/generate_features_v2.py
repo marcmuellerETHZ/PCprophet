@@ -394,29 +394,28 @@ def mp_cmplx(filename, goobj, gaf, mult):
     sd = dd.from_pandas(df, npartitions=npartitions)
     print(f"Calculating features for {filename} using {npartitions} partition(s).")
 
-    with ProgressBar():
-        feats = pd.DataFrame(
-            sd.map_partitions(
-                lambda df: process_slice(df, goobj, gaf), meta=(None, "object")
-            )
-            .compute(scheduler="processes")
-            .values.tolist()
+    feats = pd.DataFrame(
+        sd.map_partitions(
+            lambda df: process_slice(df, goobj, gaf), meta=(None, "object")
         )
-        h = ["ID", "MB", "COR", "SHFT", "DIF", "W", "SC_CC", "SC_MF", "SC_BP", "TOTS"]
-        feats.columns = h
-        feats = feats[feats['ID'] != -1]
+        .compute(scheduler="processes")
+        .values.tolist()
+    )
+    h = ["ID", "MB", "COR", "SHFT", "DIF", "W", "SC_CC", "SC_MF", "SC_BP", "TOTS"]
+    feats.columns = h
+    feats = feats[feats['ID'] != -1]
 
-        pks = pd.DataFrame(
-            sd.map_partitions(
-                lambda df: process_slice(df, None, None, "peak"), meta=(None, "object")
-            )
-            .compute(scheduler="processes")
-            .values.tolist()
+    pks = pd.DataFrame(
+        sd.map_partitions(
+            lambda df: process_slice(df, None, None, "peak"), meta=(None, "object")
         )
-        pks = pks.apply(pd.Series.explode).reset_index()
-        pks.columns = ["index", "MB", "ID", "PKS", "SEL"]
-        pks = pks[pks['ID'] != -1]
-        pks.drop("index", axis=1, inplace=True)
+        .compute(scheduler="processes")
+        .values.tolist()
+    )
+    pks = pks.apply(pd.Series.explode).reset_index()
+    pks.columns = ["index", "MB", "ID", "PKS", "SEL"]
+    pks = pks[pks['ID'] != -1]
+    pks.drop("index", axis=1, inplace=True)
 
     return feats, pks
 
