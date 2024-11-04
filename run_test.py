@@ -3,7 +3,7 @@
 import os
 from PCprophet import io_ as io
 from PCprophet import collapse as collapse
-from PCprophet import generate_features as generate_features
+from PCprophet import generate_features_v2 as generate_features
 from PCprophet import hypothesis as hypothesis
 from PCprophet import map_to_database as map_to_database
 from PCprophet import merge as merge
