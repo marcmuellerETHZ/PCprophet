@@ -187,8 +187,12 @@ def create_config():
     # Call setup_output_directory with parsed arguments
     output_folder, tmp_folder = setup_output_directory(base_output=args.out_folder, sid_file=args.sample_ids)
 
-    # Write output folder directory to temporary file for slurm accession
-    with open("slurm_analysis_dir.sh", "w") as f:
+    # Get SLURM info
+    job_id = os.getenv("SLURM_JOB_ID", "default_job_id")  # Fallback if running without SLURM
+    slurm_file = f"slurm_analysis_dir_{job_id}.sh"
+
+    # Write output folder directory to temporary file for SLURM accession
+    with open(slurm_file, "w") as f:
         f.write(f"export ANALYSIS_DIR={output_folder}\n")
     
 
