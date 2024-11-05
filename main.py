@@ -267,6 +267,7 @@ def main():
     validate.InputTester(config['GLOBAL']['sid'], 'ids').test_file()
     files = io.read_sample_ids(config['GLOBAL']['sid'])
     files = [os.path.abspath(x) for x in files.keys()]
+    
     # skip feature generation
     if config['GLOBAL']['skip'] == 'False':
         # Track time for preprocessing step

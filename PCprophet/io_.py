@@ -268,6 +268,9 @@ def read_txt(path, first_col="GN"):
                     HoA[temp.get("GN")].append(float(temp[key]))
                 except ValueError as v:
                     continue
+    gene_count = len(HoA)
+    #function is called twice -> two prints
+    print(f"Number of analyzed genes in {path}: {gene_count}")
     return HoA
 
 
