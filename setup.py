@@ -22,12 +22,10 @@ setup_args = dict(
         'PCprophet/io_.py',
         'PCprophet/hypothesis.py',
         'PCprophet/mcl.py',
-        'PCprophet/init.py'
         'PCprophet/map_to_database.py',
         'PCprophet/mcl.py',
         'PCprophet/merge.py',
         'PCprophet/parse_go.py',
-        'PCprophet/main.py',
         'PCprophet/plots.py',
         'PCprophet/predict.py',
         'PCprophet/stats_.py',
@@ -35,7 +33,7 @@ setup_args = dict(
     ],
     # long_description=long_description,
     license='MIT',
-    install_requires=['scipy>=1.1', 'pandas', 'sklearn', 'networkX', 'dask>=2.30'],
+    install_requires=['scipy>=1.1', 'pandas', 'scikit-learn', 'networkX', 'dask>=2.30'],
     package_data={
         'PCprophet': ['go_term_class.txt', 'go-basic.obo', 'rf_equal.clf'],
     },
