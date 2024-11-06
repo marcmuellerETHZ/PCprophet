@@ -141,6 +141,9 @@ Output/
 # ignore data folder
 data/
 
+# ignore runtime analysis
+runtime/
+
 .Rhistory
 Hela/*
 
