@@ -12,6 +12,7 @@ import PCprophet.io_ as io
 
 
 # standardize and center methods
+# MM: seems to me like profiles are upsampled to 72 fractions
 def center_arr(hoa, fr_nr="all", norm=True, nat=True, stretch=(True, 72)):
     hypo = {}
     for k in hoa:

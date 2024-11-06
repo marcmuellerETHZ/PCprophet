@@ -19,10 +19,22 @@ mute = np.testing.suppress_warnings()
 mute.filter(RuntimeWarning)
 mute.filter(module=np.ma.core)
 
-
+# super call and getter methods are redundant here but future-proof the code
 class ProteinProfile(object):
     """
-    docstring for ProteinProfile
+    A class representing a protein's intensity profile and peak data.
+
+    Attributes:
+    acc : str
+        Protein accession (identifier).
+    inten : numpy.ndarray
+        Intensity profile of the protein.
+    peaks : list
+        List of peaks identified in the intensity profile.
+
+    Methods:
+    calc_peaks():
+        Calculates and stores peaks in the intensity profile.
     """
 
     def __init__(self, acc, inten):
@@ -119,7 +131,8 @@ class ComplexProfile(object):
         """
         a, b = pairs[0].get_inte(), pairs[1].get_inte()
         # a,b are input arrays; W is window length
-
+        
+        #MM: smoothing
         am = uniform_filter(a.astype(float), W)
         bm = uniform_filter(b.astype(float), W)
 
