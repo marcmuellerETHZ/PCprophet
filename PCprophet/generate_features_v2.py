@@ -4,9 +4,9 @@ import os
 import numpy as np
 import scipy.signal as signal
 import pandas as pd
+
 from scipy.ndimage import uniform_filter
 from dask import dataframe as dd
-from dask.diagnostics import ProgressBar
 
 import PCprophet.parse_go as go
 import PCprophet.io_ as io

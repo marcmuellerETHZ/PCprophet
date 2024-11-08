@@ -265,7 +265,6 @@ def preprocessing(infile, config, tmp_folder):
 
 
 def main():
-    print(f"Available cores: {multiprocessing.cpu_count()}")
     config = create_config()
     validate.InputTester(config['GLOBAL']['db'], 'db').test_file()
     validate.InputTester(config['GLOBAL']['sid'], 'ids').test_file()
