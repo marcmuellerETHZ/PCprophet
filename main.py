@@ -255,16 +255,17 @@ def preprocessing(infile, config, tmp_folder):
         tmp_folder=tmp_folder,
     )
     merge.runner(base=tmp_folder, mergemode=config['PREPROCESS']['merge'])
+    generate_features_allbyall.runner(
+        infile=infile,
+        output_folder=tmp_folder,
+        npartitions=config['GLOBAL']['mult'],
+        db=config['GLOBAL']['db'],
+    )
     generate_features.runner(
         tmp_folder,
         config['GLOBAL']['go_obo'],
         config['GLOBAL']['sp_go'],
         config['GLOBAL']['mult']
-    )
-    generate_features_allbyall.runner(
-        infile=infile,
-        output_folder=tmp_folder,
-        npartitions=config['GLOBAL']['mult']
     )
     predict.runner(tmp_folder)
     return True

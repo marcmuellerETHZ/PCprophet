@@ -1,12 +1,17 @@
 import re
 import sys
 import os
+import json
 import numpy as np
 import scipy.signal as signal
 import pandas as pd
+import random
+import matplotlib.pyplot as plt
 
 from dask import dataframe as dd
 from itertools import combinations
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_curve, auc, precision_recall_curve
 
 import PCprophet.io_ as io
 
@@ -91,8 +96,56 @@ def calc_feat_allbyall(prot_dict, npartitions=4):
     
     return pd.DataFrame(results.tolist())
 
+
+def db_to_dict(db):
+    ppi_dict = {}
+    for gene_names in db['subunits(Gene name)']:
+        if pd.notna(gene_names):
+            genes = [gene.upper() for gene in gene_names.split(';')]
+            for gene_a in genes:
+                if gene_a not in ppi_dict:
+                    ppi_dict[gene_a] = set()
+                for gene_b in genes:
+                    if gene_a != gene_b:
+                        ppi_dict[gene_a].add(gene_b)
+    return ppi_dict
+
+# Step 2: Check if a pair exists in CORUM
+def add_ppi(pairs_df, ppi_dict):
+    pairs_df['db'] = pairs_df.apply(
+        lambda row: row['ProteinB'].upper() in ppi_dict.get(row['ProteinA'].upper(), set()),
+        axis=1
+    )
+    return pairs_df
+
+def fit_logistic_model(pairwise_corr_df):
+    X = pairwise_corr_df[['Correlation']].values
+    y = pairwise_corr_df['Label'].values
+
+    model = LogisticRegression()
+    model.fit(X, y)
+
+    y_scores = model.predict_proba(X)[:, 1]
+
+    fpr, tpr, _ = roc_curve(y, y_scores)
+    roc_auc = auc(fpr, tpr)
+
+    precision, recall, _ = precision_recall_curve(y, y_scores)
+    pr_auc = auc(recall, precision)
+
+    performance_data = {
+        "fpr": fpr.tolist(),
+        "tpr": tpr.tolist(),
+        "precision": precision.tolist(),
+        "recall": recall.tolist(),
+        "ROC AUC": roc_auc,
+        "PR AUC": pr_auc
+    }
+
+    return performance_data
+
 # wrapper
-def allbyall_feat(infile, npartitions):
+def allbyall_feat(prot_dict, npartitions, db):
     """
     Wrapper to compute all-by-all pairwise features.
     
@@ -101,20 +154,23 @@ def allbyall_feat(infile, npartitions):
     - npartitions: Number of partitions for parallel processing.
     
     Returns:
-    - pairwise_results: DataFrame containing pairwise correlation results.
+    - pairwise_corr: DataFrame containing pairwise correlation results.
     """
-    # Step 1: Load elution profiles
-    prot_dict = io.read_txt(infile)  # Assume this returns {protein: [elution profile]}
-
     npartitions = max(1, int(npartitions))
     
-    # Step 2: Compute all pairwise correlations
-    print(f"Computing pairwise correlations using {npartitions} partitions...")
-    pairwise_results = calc_feat_allbyall(prot_dict, npartitions=npartitions)
-    
-    return pairwise_results
+    ppi_dict = db_to_dict(db)
 
-def runner(infile, output_folder, npartitions):
+    pairwise_corr = calc_feat_allbyall(prot_dict, npartitions=npartitions)
+
+    pairwise_corr_db = add_ppi(pairwise_corr, ppi_dict)
+
+    pairwise_corr_db['Label'] = pairwise_corr_db['db'].astype(int)
+
+    performance_data = fit_logistic_model(pairwise_corr_db)
+
+    return pairwise_corr_db
+
+def runner(infile, output_folder, npartitions, db):
     """
     Runner function to handle file paths, invoke the wrapper, and save results.
 
@@ -126,17 +182,13 @@ def runner(infile, output_folder, npartitions):
     Returns:
     - True: Indicates successful execution.
     """
-    # Ensure output directory exists
     os.makedirs(output_folder, exist_ok=True)
-    
-    # Invoke the wrapper to calculate features
-    pairwise_results = allbyall_feat(infile, npartitions)
-    
-    # Define output file path
-    output_path = os.path.join(output_folder, 'pairwise_correlation.txt')
-    
-    # Save the results
-    print(f"Saving pairwise correlation results to {output_path}...")
-    pairwise_results.to_csv(output_path, index=False, sep="\t")
+    prot_dict = io.read_txt(infile)
+    db_file = pd.read_csv(db, sep="\t")
+
+    pairwise_df = allbyall_feat(prot_dict=prot_dict, npartitions=npartitions, db=db_file)
+
+    path_pairwise_df = os.path.join(output_folder, 'pairwise_correlation.txt')
+    pairwise_df.to_csv(path_pairwise_df, index=False, sep="\t")
     
     return True
