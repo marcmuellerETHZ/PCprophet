@@ -13,6 +13,7 @@ import multiprocessing
 from PCprophet import io_ as io
 from PCprophet import collapse as collapse
 from PCprophet import generate_features_v2 as generate_features
+from PCprophet import generate_features_allbyall as generate_features_allbyall
 from PCprophet import hypothesis as hypothesis
 from PCprophet import map_to_database as map_to_database
 from PCprophet import merge as merge
@@ -259,6 +260,11 @@ def preprocessing(infile, config, tmp_folder):
         config['GLOBAL']['go_obo'],
         config['GLOBAL']['sp_go'],
         config['GLOBAL']['mult']
+    )
+    generate_features_allbyall.runner(
+        infile=infile,
+        output_folder=tmp_folder,
+        npartitions=config['GLOBAL']['mult']
     )
     predict.runner(tmp_folder)
     return True
