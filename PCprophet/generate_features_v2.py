@@ -124,7 +124,7 @@ class ComplexProfile(object):
         """
         cmplx_members = self.get_members()
         return "#".join(cmplx_members)
-
+    
     def calc_corr(self, pairs, W=10):
         """
         vectorized correlation between pairs vectors with sliding window
@@ -355,7 +355,6 @@ def create_dummy_row(mode='feature'):
     elif mode == 'peaks':
         return (-1, -1, -1, -1)
 
-
 def gen_feat(s, goobj, gaf):
     """
     receive a single row and generate feature calc
@@ -387,6 +386,7 @@ def process_slice(df, goobj, gaf, mode="feature"):
 
 
 # wrapper
+@io.timeit
 def mp_cmplx(filename, goobj, gaf, mult):
     """
     map complex into 3 vector => cor vectors

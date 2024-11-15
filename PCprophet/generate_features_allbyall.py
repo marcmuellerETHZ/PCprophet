@@ -1,7 +1,6 @@
 import re
 import sys
 import os
-import json
 import numpy as np
 import scipy.signal as signal
 import pandas as pd
@@ -145,6 +144,7 @@ def fit_logistic_model(pairwise_corr_df):
     return performance_data
 
 # wrapper
+@io.timeit
 def allbyall_feat(prot_dict, npartitions, db):
     """
     Wrapper to compute all-by-all pairwise features.
@@ -170,25 +170,25 @@ def allbyall_feat(prot_dict, npartitions, db):
 
     return pairwise_corr_db
 
-def runner(infile, output_folder, npartitions, db):
+def runner(infile, tmp_folder, npartitions, db):
     """
     Runner function to handle file paths, invoke the wrapper, and save results.
 
     Parameters:
     - infile: Path to the input file containing elution profiles.
-    - output_folder: Directory to save the results.
+    - tmp_folder: Directory to save the results.
     - npartitions: Number of partitions for parallel processing.
     
     Returns:
     - True: Indicates successful execution.
     """
-    os.makedirs(output_folder, exist_ok=True)
+    os.makedirs(tmp_folder, exist_ok=True)
     prot_dict = io.read_txt(infile)
     db_file = pd.read_csv(db, sep="\t")
 
     pairwise_df = allbyall_feat(prot_dict=prot_dict, npartitions=npartitions, db=db_file)
 
-    path_pairwise_df = os.path.join(output_folder, 'pairwise_correlation.txt')
+    path_pairwise_df = os.path.join(tmp_folder, 'pairwise_correlation.txt')
     pairwise_df.to_csv(path_pairwise_df, index=False, sep="\t")
     
     return True

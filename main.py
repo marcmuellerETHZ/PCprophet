@@ -257,7 +257,7 @@ def preprocessing(infile, config, tmp_folder):
     merge.runner(base=tmp_folder, mergemode=config['PREPROCESS']['merge'])
     generate_features_allbyall.runner(
         infile=infile,
-        output_folder=tmp_folder,
+        tmp_folder=tmp_folder,
         npartitions=config['GLOBAL']['mult'],
         db=config['GLOBAL']['db'],
     )
@@ -265,7 +265,7 @@ def preprocessing(infile, config, tmp_folder):
         tmp_folder,
         config['GLOBAL']['go_obo'],
         config['GLOBAL']['sp_go'],
-        config['GLOBAL']['mult']
+        config['GLOBAL']['mult'],
     )
     predict.runner(tmp_folder)
     return True
@@ -280,11 +280,7 @@ def main():
     
     # skip feature generation
     if config['GLOBAL']['skip'] == 'False':
-        # Track time for preprocessing step
-        start_time = time.time()
         [preprocessing(infile, config, config['GLOBAL']['temp']) for infile in files]
-        end_time = time.time()
-        print(f"Preprocessing took {end_time - start_time:.2f} seconds")
     collapse.runner(
         config['GLOBAL']['temp'],
         config['GLOBAL']['sid'],
