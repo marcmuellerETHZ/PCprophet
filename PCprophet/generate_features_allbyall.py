@@ -1,6 +1,7 @@
 import re
 import sys
 import os
+import json
 import numpy as np
 import scipy.signal as signal
 import pandas as pd
@@ -132,16 +133,22 @@ def fit_logistic_model(pairwise_corr_df):
     precision, recall, _ = precision_recall_curve(y, y_scores)
     pr_auc = auc(recall, precision)
 
-    performance_data = {
-        "fpr": fpr.tolist(),
-        "tpr": tpr.tolist(),
-        "precision": precision.tolist(),
-        "recall": recall.tolist(),
-        "ROC AUC": roc_auc,
-        "PR AUC": pr_auc
-    }
+    roc_df = pd.DataFrame({
+        "fpr": fpr,
+        "tpr": tpr
+    })
 
-    return performance_data
+    pr_df = pd.DataFrame({
+        "precision": precision,
+        "recall": recall
+    })
+
+    auc_df = pd.DataFrame({
+        "curve": ["ROC", "PR"],
+        "AUC": [roc_auc, pr_auc]
+    })
+
+    return roc_df, pr_df, auc_df
 
 # wrapper
 @io.timeit
@@ -166,9 +173,9 @@ def allbyall_feat(prot_dict, npartitions, db):
 
     pairwise_corr_db['Label'] = pairwise_corr_db['db'].astype(int)
 
-    performance_data = fit_logistic_model(pairwise_corr_db)
+    roc_df, pr_df, auc_df = fit_logistic_model(pairwise_corr_db)
 
-    return pairwise_corr_db
+    return pairwise_corr_db, roc_df, pr_df, auc_df
 
 def runner(infile, tmp_folder, npartitions, db):
     """
@@ -186,9 +193,19 @@ def runner(infile, tmp_folder, npartitions, db):
     prot_dict = io.read_txt(infile)
     db_file = pd.read_csv(db, sep="\t")
 
-    pairwise_df = allbyall_feat(prot_dict=prot_dict, npartitions=npartitions, db=db_file)
+    pairwise_corr_db, roc_df, pr_df, auc_df = allbyall_feat(prot_dict=prot_dict, npartitions=npartitions, db=db_file)
 
-    path_pairwise_df = os.path.join(tmp_folder, 'pairwise_correlation.txt')
-    pairwise_df.to_csv(path_pairwise_df, index=False, sep="\t")
-    
+    # ..\\ --> quick fix to get files from sample-specific subfolder in tmp to tmp folder
+    # WONT WORK WITH >1 SAMPLES!!
+    path_pairwise_df = os.path.join(tmp_folder, '..\\pairwise_correlation.txt')
+    pairwise_corr_db.to_csv(path_pairwise_df, index=False, sep="\t")
+
+    path_roc = os.path.join(tmp_folder, "..\\ROC_curve.txt")
+    path_pr = os.path.join(tmp_folder, "..\\PR_curve.txt")
+    path_auc = os.path.join(tmp_folder, "..\\AUCs.txt")
+
+    roc_df.to_csv(path_roc, sep="\t")
+    pr_df.to_csv(path_pr, sep="\t")
+    auc_df.to_csv(path_auc, sep="\t")
+
     return True

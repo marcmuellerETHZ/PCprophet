@@ -251,10 +251,8 @@ def main():
     plots.runner(
         config['GLOBAL']['temp'],
         config['GLOBAL']['output'],
-        config['POSTPROCESS']['fdr'],
         config['GLOBAL']['sid'],
     )
-
 
 if __name__ == '__main__':
     try:
