@@ -197,12 +197,14 @@ def runner(infile, tmp_folder, npartitions, db):
 
     # ..\\ --> quick fix to get files from sample-specific subfolder in tmp to tmp folder
     # WONT WORK WITH >1 SAMPLES!!
-    path_pairwise_df = os.path.join(tmp_folder, '..\\pairwise_correlation.txt')
+
+    parent_folder = os.path.abspath(os.path.join(tmp_folder, os.pardir))
+    path_pairwise_df = os.path.join(parent_folder, 'pairwise_correlation.txt')
     pairwise_corr_db.to_csv(path_pairwise_df, index=False, sep="\t")
 
-    path_roc = os.path.join(tmp_folder, "..\\ROC_curve.txt")
-    path_pr = os.path.join(tmp_folder, "..\\PR_curve.txt")
-    path_auc = os.path.join(tmp_folder, "..\\AUCs.txt")
+    path_roc = os.path.join(parent_folder, "ROC_curve.txt")
+    path_pr = os.path.join(parent_folder, "PR_curve.txt")
+    path_auc = os.path.join(parent_folder, "AUCs.txt")
 
     roc_df.to_csv(path_roc, sep="\t")
     pr_df.to_csv(path_pr, sep="\t")
