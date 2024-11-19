@@ -355,6 +355,7 @@ def create_dummy_row(mode='feature'):
     elif mode == 'peaks':
         return (-1, -1, -1, -1)
 
+@io.timeit
 def gen_feat(s, goobj, gaf):
     """
     receive a single row and generate feature calc

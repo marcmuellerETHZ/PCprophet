@@ -6,8 +6,6 @@ import sys
 import os
 import platform
 import numpy as np
-import time
-import multiprocessing
 
 # modules
 from PCprophet import io_ as io
@@ -20,7 +18,6 @@ from PCprophet import merge as merge
 from PCprophet import differential as differential
 from PCprophet import predict as predict
 from PCprophet import plots as plots
-
 from PCprophet import validate_input as validate
 
 from datetime import datetime
@@ -269,7 +266,6 @@ def preprocessing(infile, config, tmp_folder):
     )
     predict.runner(tmp_folder)
     return True
-
 
 def main():
     config = create_config()

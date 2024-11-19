@@ -13,6 +13,8 @@ import PCprophet.io_ as io
 
 # standardize and center methods
 # MM: seems to me like profiles are upsampled to 72 fractions
+
+@io.timeit
 def center_arr(hoa, fr_nr="all", norm=True, nat=True, stretch=(True, 72)):
     hypo = {}
     for k in hoa:
@@ -30,7 +32,7 @@ def center_arr(hoa, fr_nr="all", norm=True, nat=True, stretch=(True, 72)):
         hypo[k] = list(key)
     return hypo
 
-
+@io.timeit
 def split_peaks(prot_arr, pr, skp=0):
     """
     split peaks in n samples giving skp fractions of window
@@ -102,7 +104,7 @@ def decondense(df, ids):
         clusters[cluster_n] = current
     return clusters
 
-
+@io.timeit
 def format_cluster(hoa, clust):
     out = {}
     lk = {k: ",".join(map(str, v)) for k, v in hoa.items()}
@@ -112,7 +114,7 @@ def format_cluster(hoa, clust):
             out["#".join(gn)] = ["#".join([lk[x] for x in gn])]
     return out
 
-
+@io.timeit
 def collapse_prot(infile, use):
     prot = io.read_txt(infile, "GN")
     prot = center_arr(prot, fr_nr=use, stretch=(True, 72))
@@ -130,7 +132,7 @@ def collapse_prot(infile, use):
     #  return peaks2prot(hypothesis, prot),pr_df
     return hypo_df, pr_df
 
-
+@io.timeit
 def runner(infile, hypothesis, use_fr, tmp_folder):
     """
     generate hypothesis from infile using all fract fractions and max hypo nr
