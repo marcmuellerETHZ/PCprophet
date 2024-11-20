@@ -12,6 +12,7 @@ from dask import dataframe as dd
 from itertools import combinations
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
+from scipy.ndimage import uniform_filter1d
 
 import PCprophet.io_ as io
 
@@ -20,6 +21,63 @@ np.seterr(all="ignore")
 mute = np.testing.suppress_warnings()
 mute.filter(RuntimeWarning)
 mute.filter(module=np.ma.core)
+
+def clean_profile(chromatogram, impute_NA=True, smooth=True, smooth_width=4, noise_floor=0.001):
+    """
+    Clean an elution profile by imputing missing values, adding noise, and smoothing.
+    
+    Parameters:
+    - chromatogram: np.ndarray, the elution profile (1D array).
+    - impute_NA: bool, if True, impute missing/zero values using neighboring averages.
+    - smooth: bool, if True, apply a moving average filter.
+    - smooth_width: int, width of the moving average filter.
+    - noise_floor: float, the maximum value for near-zero random noise.
+    
+    Returns:
+    - cleaned: np.ndarray, the cleaned elution profile.
+    """
+    cleaned = np.copy(chromatogram)
+    
+    # Impute missing or zero values using mean of neighbors
+    if impute_NA:
+        for i in range(1, len(cleaned) - 1):
+            if cleaned[i] == 0 or np.isnan(cleaned[i]):
+                cleaned[i] = (cleaned[i - 1] + cleaned[i + 1]) / 2.0
+    
+    # Replace remaining missing or zero values with near-zero noise
+    mask = (cleaned == 0) | np.isnan(cleaned)
+    cleaned[mask] = np.random.uniform(0, noise_floor, size=mask.sum())
+    
+    # Apply moving average smoothing
+    if smooth:
+        padded = np.pad(cleaned, pad_width=smooth_width, mode='constant', constant_values=0)
+        smoothed = uniform_filter1d(padded, size=smooth_width, mode='constant')
+        cleaned = smoothed[smooth_width:-smooth_width]
+    
+    return cleaned
+
+@io.timeit
+def clean_prot_dict(prot_dict, impute_NA=True, smooth=True, smooth_width=4, noise_floor=0.001):
+    """
+    Clean all elution profiles in a protein dictionary.
+    
+    Parameters:
+    - prot_dict: dict, {protein: elution profile}.
+    - impute_NA, smooth, smooth_width, noise_floor: cleaning parameters.
+    
+    Returns:
+    - cleaned_dict: dict, {protein: cleaned elution profile}.
+    """
+    cleaned_dict = {}
+    for protein, chromatogram in prot_dict.items():
+        cleaned_dict[protein] = clean_profile(
+            np.array(chromatogram),
+            impute_NA=impute_NA,
+            smooth=smooth,
+            smooth_width=smooth_width,
+            noise_floor=noise_floor
+        )
+    return cleaned_dict
 
 def generate_combinations(prot_dict):
     """
@@ -122,6 +180,8 @@ def fit_logistic_model(pairwise_corr_df):
     X = pairwise_corr_df[['Correlation']].values
     y = pairwise_corr_df['Label'].values
 
+    ground_truth_pos = y.sum()/len(y)
+
     model = LogisticRegression()
     model.fit(X, y)
 
@@ -144,8 +204,8 @@ def fit_logistic_model(pairwise_corr_df):
     })
 
     auc_df = pd.DataFrame({
-        "curve": ["ROC", "PR"],
-        "AUC": [roc_auc, pr_auc]
+        "obj": ["ROC_AUC", "PR_AUC", "GT_POS"],
+        "value": [roc_auc, pr_auc, ground_truth_pos]
     })
 
     return roc_df, pr_df, auc_df
@@ -193,14 +253,17 @@ def runner(infile, tmp_folder, npartitions, db):
     prot_dict = io.read_txt(infile)
     db_file = pd.read_csv(db, sep="\t")
 
-    pairwise_corr_db, roc_df, pr_df, auc_df = allbyall_feat(prot_dict=prot_dict, npartitions=npartitions, db=db_file)
+    pairwise_corr, roc_df, pr_df, auc_df = allbyall_feat(prot_dict=prot_dict, npartitions=npartitions, db=db_file)
+
+    prot_dict_smooth = clean_prot_dict(prot_dict)
+    pairwise_corr_smooth, roc_df_smooth, pr_df_smooth, auc_df_smooth = allbyall_feat(prot_dict=prot_dict_smooth, npartitions=npartitions, db=db_file)
 
     # ..\\ --> quick fix to get files from sample-specific subfolder in tmp to tmp folder
     # WONT WORK WITH >1 SAMPLES!!
 
     parent_folder = os.path.abspath(os.path.join(tmp_folder, os.pardir))
-    path_pairwise_df = os.path.join(parent_folder, 'pairwise_correlation.txt')
-    pairwise_corr_db.to_csv(path_pairwise_df, index=False, sep="\t")
+    path_pairwise_corr = os.path.join(parent_folder, 'pairwise_correlation.txt')
+    pairwise_corr.to_csv(path_pairwise_corr, index=False, sep="\t")
 
     path_roc = os.path.join(parent_folder, "ROC_curve.txt")
     path_pr = os.path.join(parent_folder, "PR_curve.txt")
@@ -209,5 +272,16 @@ def runner(infile, tmp_folder, npartitions, db):
     roc_df.to_csv(path_roc, sep="\t")
     pr_df.to_csv(path_pr, sep="\t")
     auc_df.to_csv(path_auc, sep="\t")
+
+    path_pairwise_corr_smooth = os.path.join(parent_folder, 'pairwise_correlation_smooth.txt')
+    pairwise_corr_smooth.to_csv(path_pairwise_corr_smooth, index=False, sep="\t")
+
+    path_roc_smooth = os.path.join(parent_folder, "ROC_curve_smooth.txt")
+    path_pr_smooth = os.path.join(parent_folder, "PR_curve_smooth.txt")
+    path_auc_smooth = os.path.join(parent_folder, "AUCs_smooth.txt")
+
+    roc_df_smooth.to_csv(path_roc_smooth, sep="\t")
+    pr_df_smooth.to_csv(path_pr_smooth, sep="\t")
+    auc_df_smooth.to_csv(path_auc_smooth, sep="\t")
 
     return True
