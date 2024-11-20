@@ -14,6 +14,7 @@ from PCprophet import io_ as io
 from PCprophet import generate_features_allbyall as generate_features_allbyall
 from PCprophet import plots_allbyall as plots
 from PCprophet import validate_input as validate
+from PCprophet import fit_model
 
 class ParserHelper(argparse.ArgumentParser):
     def error(self, message):
@@ -233,7 +234,7 @@ def preprocessing(infile, config, tmp_folder):
         infile=infile,
         tmp_folder=tmp_folder,
         npartitions=config['GLOBAL']['mult'],
-        db=config['GLOBAL']['db'],
+        features=['correlation_raw', 'correlation_smooth'],
     )
     return True
 
@@ -244,10 +245,20 @@ def main():
     validate.InputTester(config['GLOBAL']['sid'], 'ids').test_file()
     files = io.read_sample_ids(config['GLOBAL']['sid'])
     files = [os.path.abspath(x) for x in files.keys()]
+
+    features = ['correlation_raw', 'correlation_smooth']
     
     # skip feature generation
     if config['GLOBAL']['skip'] == 'False':
         [preprocessing(infile, config, config['GLOBAL']['temp']) for infile in files]
+
+    # in case of multiple samples, insert step to first average features
+    fit_model.runner(
+        config['GLOBAL']['temp'],
+        config['GLOBAL']['db'],
+        features,
+    )
+
     plots.runner(
         config['GLOBAL']['temp'],
         config['GLOBAL']['output'],
