@@ -102,8 +102,8 @@ def gen_feat(row, prot_dict, prot_dict_smooth, features):
                 results[feature] = np.corrcoef(raw_a, raw_b)[0, 1]
             elif feature == 'correlation_smooth':
                 results[feature] = np.corrcoef(smooth_a, smooth_b)[0, 1]
-            elif feature == 'euclidean_distance':
-                results[feature] = np.linalg.norm(np.array(raw_a) - np.array(raw_b))
+            elif feature == 'euclidean_distance_smooth':
+                results[feature] = np.linalg.norm(np.array(smooth_a) - np.array(smooth_b))
             else:
                 results[feature] = np.nan
     else:

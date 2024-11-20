@@ -234,7 +234,7 @@ def preprocessing(infile, config, tmp_folder):
         infile=infile,
         tmp_folder=tmp_folder,
         npartitions=config['GLOBAL']['mult'],
-        features=['correlation_raw', 'correlation_smooth'],
+        features=['correlation_raw', 'correlation_smooth', 'euclidean_distance_smooth'],
     )
     return True
 
@@ -246,7 +246,7 @@ def main():
     files = io.read_sample_ids(config['GLOBAL']['sid'])
     files = [os.path.abspath(x) for x in files.keys()]
 
-    features = ['correlation_raw', 'correlation_smooth']
+    features = ['correlation_raw', 'correlation_smooth', 'euclidean_distance_smooth']
     
     # skip feature generation
     if config['GLOBAL']['skip'] == 'False':
@@ -262,7 +262,7 @@ def main():
     plots.runner(
         config['GLOBAL']['temp'],
         config['GLOBAL']['output'],
-        config['GLOBAL']['sid'],
+        features,
     )
 
 if __name__ == '__main__':
