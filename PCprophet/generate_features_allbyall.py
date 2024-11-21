@@ -85,12 +85,13 @@ def generate_combinations(prot_dict):
     """
     return pd.DataFrame(list(combinations(prot_dict.keys(), 2)), columns=['ProteinA', 'ProteinB'])
 
-def calc_euclidean_dist(elution_a, elution_b):
+def calc_inv_euclidean_dist(elution_a, elution_b):
     diff = np.array(elution_a) - np.array(elution_b)
     sq_diff = diff**2
     sum_sq_diff = sq_diff.sum()
     eucl_dist = sum_sq_diff**(1/2)
-    return eucl_dist
+    inv_eucl_dist = 1/eucl_dist
+    return inv_eucl_dist
 
 
 def gen_feat(row, prot_dict, prot_dict_smooth, features):
@@ -110,7 +111,7 @@ def gen_feat(row, prot_dict, prot_dict_smooth, features):
             elif feature == 'correlation_smooth':
                 results[feature] = np.corrcoef(smooth_a, smooth_b)[0, 1]
             elif feature == 'euclidean_distance_smooth':
-                results[feature] = calc_euclidean_dist(smooth_a, smooth_b)
+                results[feature] = calc_inv_euclidean_dist(smooth_a, smooth_b)
             else:
                 results[feature] = np.nan
     else:
