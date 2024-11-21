@@ -13,6 +13,7 @@ from itertools import combinations
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
 from scipy.ndimage import uniform_filter1d
+from scipy.ndimage import uniform_filter
 
 import PCprophet.io_ as io
 
@@ -93,6 +94,47 @@ def calc_inv_euclidean_dist(elution_a, elution_b):
     inv_eucl_dist = 1/eucl_dist
     return inv_eucl_dist
 
+# I think there is a pitfall here: in smoothing, NAs are replaced with near-0 noise 
+# Then, two measurements with lots of NAs will have high correlation, because both have lots of 0's
+# This is why here, only raw profiles should be used
+
+def sliding_window_correlation(a, b, metric, W=10):
+    """
+    vectorized correlation between pairs vectors with sliding window
+    """
+    cor = []
+
+    aa = np.array(a)
+    bb = np.array(b)
+    
+    am = uniform_filter(aa.astype(float), W)
+    bm = uniform_filter(bb.astype(float), W)
+
+    amc = am[W // 2 : -W // 2 + 1]
+    bmc = bm[W // 2 : -W // 2 + 1]
+
+    da = aa[:, None] - amc
+    db = bb[:, None] - bmc
+
+    # Get sliding mask of valid windows
+    m, n = da.shape
+    mask1 = np.arange(m)[:, None] >= np.arange(n)
+    mask2 = np.arange(m)[:, None] < np.arange(n) + W
+    mask = mask1 & mask2
+    dam = da * mask
+    dbm = db * mask
+
+    ssAs = np.einsum("ij,ij->j", dam, dam)
+    ssBs = np.einsum("ij,ij->j", dbm, dbm)
+    D = np.einsum("ij,ij->j", dam, dbm)
+    # add np.nan to reach 72
+    cor.append(np.hstack((D / np.sqrt(ssAs * ssBs), np.zeros(9) + np.nan)))
+
+    return_cor = metric(cor)
+
+    return return_cor
+
+
 
 def gen_feat(row, prot_dict, prot_dict_smooth, features):
     """
@@ -112,6 +154,10 @@ def gen_feat(row, prot_dict, prot_dict_smooth, features):
                 results[feature] = np.corrcoef(smooth_a, smooth_b)[0, 1]
             elif feature == 'euclidean_distance_smooth':
                 results[feature] = calc_inv_euclidean_dist(smooth_a, smooth_b)
+            elif feature == 'max_sliding_window_correlation_raw':
+                results[feature] = sliding_window_correlation(raw_a, raw_b, np.nanmax)
+            elif feature == 'mean_sliding_window_correlation_raw':
+                results[feature] = sliding_window_correlation(raw_a, raw_b, np.nanmean)
             else:
                 results[feature] = np.nan
     else:
