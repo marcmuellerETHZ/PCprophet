@@ -268,9 +268,12 @@ def read_txt(path, first_col="GN"):
                     HoA[temp.get("GN")].append(float(temp[key]))
                 except ValueError as v:
                     continue
-    gene_count = len(HoA)
-    #function is called twice -> two prints
-    print(f"Number of analyzed genes in {path}: {gene_count}")
+
+    original_length = len(HoA)
+    HoA = {key: value for key, value in HoA.items() if key and str(key).strip() != ""}
+    removed_count = original_length - len(HoA)
+
+    print(f"Number of analyzed genes in {path}: {len(HoA)}\nRemoved {removed_count} empty or invalid keys from prot_dict.")
     return HoA
 
 

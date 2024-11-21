@@ -145,9 +145,7 @@ def runner(infile, tmp_folder, npartitions, features):
 
     prot_dict = io.read_txt(infile)
 
-    pairwise_features = allbyall_feat(prot_dict=prot_dict, 
-                                      npartitions=npartitions, 
-                                      features=features)
+    pairwise_features = allbyall_feat(prot_dict=prot_dict, npartitions=npartitions, features=features)
 
     # os.pardir --> quick fix to get files from sample-specific subfolder in tmp to tmp folder
     # WONT WORK WITH >1 SAMPLES!!
