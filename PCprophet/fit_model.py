@@ -20,12 +20,17 @@ def db_to_dict(db):
                         ppi_dict[gene_a].add(gene_b)
     return ppi_dict
 
-# Step 2: Check if a pair exists in CORUM
 def add_ppi(pairs_df, ppi_dict):
-    pairs_df['db'] = pairs_df.apply(
-        lambda row: row['ProteinB'].upper() in ppi_dict.get(row['ProteinA'].upper(), set()),
-        axis=1
-    )
+    def safe_check(row):
+        try:
+            protein_a = str(row['ProteinA']).upper()
+            protein_b = str(row['ProteinB']).upper()
+            return protein_b in ppi_dict.get(protein_a, set())
+        except Exception as e:
+            print(f"Error processing row {row.name}: ProteinA={row['ProteinA']}, ProteinB={row['ProteinB']}")
+            raise e
+
+    pairs_df['db'] = pairs_df.apply(safe_check, axis=1)
     return pairs_df
 
 def fit_logistic_model(features_df_label, feature):
