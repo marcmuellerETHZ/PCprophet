@@ -30,6 +30,9 @@ def get_os():
 # I reorganized the output directory, such that for each run a new sub-directory is created which holds the tmp folder and all other outputs. 
 # Moving the tmp folder ensures uniqueness and resolves an issue where the content of a previous run in tmp would cause an error.
 def setup_output_directory(base_output, sid_file):
+    """
+    Ensure a unique output directory for each SLURM job by including the SLURM job ID.
+    """
     # Ensure base output folder exists
     if not os.path.exists(base_output):
         os.makedirs(base_output)
@@ -40,10 +43,13 @@ def setup_output_directory(base_output, sid_file):
     # Get current datetime
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Create run folder in Output (e.g. 20241101_103412_test1)
-    run_folder = f"{current_datetime}_{run_name}"
+    # Retrieve SLURM job ID (default to 'no_job_id' if not running in SLURM)
+    job_id = os.getenv("SLURM_JOB_ID", "no_job_id")
 
-    # Create full run path (e.g. Output/20241101_103412_test1)
+    # Create run folder (e.g., 20241101_103412_test1_16660190)
+    run_folder = f"{current_datetime}_{run_name}_{job_id}"
+
+    # Create full run path
     full_run_path = os.path.join(base_output, run_folder)
 
     # Create tmp folder within run path
