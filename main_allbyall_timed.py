@@ -44,7 +44,7 @@ def setup_output_directory(base_output, sid_file):
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Retrieve SLURM job ID (default to 'no_job_id' if not running in SLURM)
-    job_id = os.getenv("SLURM_JOB_ID", "no_job_id")
+    job_id = os.getenv("SLURM_JOB_ID", "local")
 
     # Create run folder (e.g., 20241101_103412_test1_16660190)
     run_folder = f"{current_datetime}_{run_name}_{job_id}"
@@ -59,11 +59,17 @@ def setup_output_directory(base_output, sid_file):
     os.makedirs(run_temp_folder, exist_ok=True)
 
     # Ensure slurm_analysis_dir is correctly populated with ANALYSIS_DIR
-    slurm_file_path = f"slurm_analysis_dir_{job_id}.sh"
+    slurm_file_path = os.path.join(full_run_path, f"slurm_analysis_dir_{job_id}.sh")
     with open(slurm_file_path, "w") as f:
         f.write(f"export ANALYSIS_DIR={full_run_path}\n")
-
     return full_run_path, run_temp_folder
+
+def move_logs(output_dir, cores, job_id):
+    try:
+        os.rename(f"slurm_output_{cores}_cores_{job_id}.log", os.path.join(output_dir, f"slurm_output.log"))
+        os.rename(f"slurm_error_{cores}_cores_{job_id}.log", os.path.join(output_dir, f"slurm_error.log"))
+    except FileNotFoundError:
+        print("Log files not found. Ensure SLURM is configured correctly.")
 
 
 def create_config():
@@ -187,15 +193,7 @@ def create_config():
 
     # Call setup_output_directory with parsed arguments
     output_folder, tmp_folder = setup_output_directory(base_output=args.out_folder, sid_file=args.sample_ids)
-
-    # Get SLURM info
-    job_id = os.getenv("SLURM_JOB_ID", "default_job_id")  # Fallback if running without SLURM
-    slurm_file = f"slurm_analysis_dir_{job_id}.sh"
-
-    # Write output folder directory to temporary file for SLURM accession
-    with open(slurm_file, "w") as f:
-        f.write(f"export ANALYSIS_DIR={output_folder}\n")
-    
+  
 
     # create config file
     config = configparser.ConfigParser()
@@ -283,6 +281,11 @@ def main():
         config['GLOBAL']['output'],
         features,
     )
+
+    # Move SLURM logs
+    job_id = os.getenv("SLURM_JOB_ID", "default_job_id")  # Default to "default_job_id" for local runs
+    cores = config['GLOBAL']['mult']
+    move_logs(config['GLOBAL']['output'], cores, job_id)
 
 if __name__ == '__main__':
     try:
