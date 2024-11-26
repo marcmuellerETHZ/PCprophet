@@ -58,6 +58,11 @@ def setup_output_directory(base_output, sid_file):
     # Create the unique run folder with tmp inside
     os.makedirs(run_temp_folder, exist_ok=True)
 
+    # Ensure slurm_analysis_dir is correctly populated with ANALYSIS_DIR
+    slurm_file_path = f"slurm_analysis_dir_{job_id}.sh"
+    with open(slurm_file_path, "w") as f:
+        f.write(f"export ANALYSIS_DIR={full_run_path}\n")
+
     return full_run_path, run_temp_folder
 
 
