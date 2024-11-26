@@ -58,7 +58,6 @@ def clean_profile(chromatogram, impute_NA=True, smooth=True, smooth_width=4, noi
     
     return cleaned
 
-@io.timeit
 def clean_prot_dict(prot_dict, impute_NA=True, smooth=True, smooth_width=4, noise_floor=0.001):
     """
     Clean all elution profiles in a protein dictionary.

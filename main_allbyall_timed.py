@@ -64,21 +64,18 @@ def setup_output_directory(base_output, sid_file):
         f.write(f"export ANALYSIS_DIR={full_run_path}\n")
     return full_run_path, run_temp_folder
 
-def move_logs(output_dir, job_id, array_task_id):
-    """
-    Move SLURM log files to the appropriate analysis directory.
-    """
-    try:
-        slurm_output_file = f"slurm_output_{job_id}_{array_task_id}.log"
-        slurm_error_file = f"slurm_error_{job_id}_{array_task_id}.log"
-
-        os.rename(slurm_output_file, os.path.join(output_dir, "slurm_output.log"))
-        os.rename(slurm_error_file, os.path.join(output_dir, "slurm_error.log"))
-        print(f"Logs moved to {output_dir}")
-    except FileNotFoundError as e:
-        print(f"Log files not found: {e}")
-    except Exception as e:
-        print(f"Unexpected error during log movement: {e}")
+def move_logs(output_dir, job_id, array_task_id="0"):
+    slurm_output_file = f"slurm_output_{job_id}_{array_task_id}.log"
+    slurm_error_file = f"slurm_error_{job_id}_{array_task_id}.log"
+    for file, dest in zip([slurm_output_file, slurm_error_file],
+                          ["slurm_output.log", "slurm_error.log"]):
+        try:
+            os.rename(file, os.path.join(output_dir, dest))
+            print(f"Moved {file} to {output_dir}/{dest}")
+        except FileNotFoundError:
+            print(f"{file} not found; skipping.")
+        except Exception as e:
+            print(f"Error moving {file}: {e}")
 
 
 def create_config():
@@ -292,20 +289,13 @@ def main():
     )
 
     # Move SLURM logs if running under SLURM
-    job_id = os.getenv("SLURM_JOB_ID")
+    job_id = os.getenv("SLURM_JOB_ID", "local")
     array_task_id = os.getenv("SLURM_ARRAY_TASK_ID", "0")  # Default to "0" for non-array jobs
 
     if job_id:  # Perform log movement only if running under SLURM
         move_logs(config['GLOBAL']['output'], job_id, array_task_id)
     else:
         print("Running locally: skipping log movement.")
-
-if __name__ == '__main__':
-    try:
-        main()
-    except KeyboardInterrupt:
-        pass
-
 
 if __name__ == '__main__':
     try:
