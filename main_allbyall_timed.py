@@ -64,12 +64,21 @@ def setup_output_directory(base_output, sid_file):
         f.write(f"export ANALYSIS_DIR={full_run_path}\n")
     return full_run_path, run_temp_folder
 
-def move_logs(output_dir, cores, job_id):
+def move_logs(output_dir, job_id, array_task_id):
+    """
+    Move SLURM log files to the appropriate analysis directory.
+    """
     try:
-        os.rename(f"slurm_output_{cores}_cores_{job_id}.log", os.path.join(output_dir, f"slurm_output.log"))
-        os.rename(f"slurm_error_{cores}_cores_{job_id}.log", os.path.join(output_dir, f"slurm_error.log"))
-    except FileNotFoundError:
-        print("Log files not found. Ensure SLURM is configured correctly.")
+        slurm_output_file = f"slurm_output_{job_id}_{array_task_id}.log"
+        slurm_error_file = f"slurm_error_{job_id}_{array_task_id}.log"
+
+        os.rename(slurm_output_file, os.path.join(output_dir, "slurm_output.log"))
+        os.rename(slurm_error_file, os.path.join(output_dir, "slurm_error.log"))
+        print(f"Logs moved to {output_dir}")
+    except FileNotFoundError as e:
+        print(f"Log files not found: {e}")
+    except Exception as e:
+        print(f"Unexpected error during log movement: {e}")
 
 
 def create_config():
@@ -265,11 +274,11 @@ def main():
                 'max_sliding_window_correlation_raw',
                 'mean_sliding_window_correlation_raw']
     
-    # skip feature generation
+    # Skip feature generation
     if config['GLOBAL']['skip'] == 'False':
         [preprocessing(infile, config, config['GLOBAL']['temp']) for infile in files]
 
-    # in case of multiple samples, insert step to first average features
+    # Model fitting and plotting
     fit_model.runner(
         config['GLOBAL']['temp'],
         config['GLOBAL']['db'],
@@ -282,10 +291,21 @@ def main():
         features,
     )
 
-    # Move SLURM logs
-    job_id = os.getenv("SLURM_JOB_ID", "default_job_id")  # Default to "default_job_id" for local runs
-    cores = config['GLOBAL']['mult']
-    move_logs(config['GLOBAL']['output'], cores, job_id)
+    # Move SLURM logs if running under SLURM
+    job_id = os.getenv("SLURM_JOB_ID")
+    array_task_id = os.getenv("SLURM_ARRAY_TASK_ID", "0")  # Default to "0" for non-array jobs
+
+    if job_id:  # Perform log movement only if running under SLURM
+        move_logs(config['GLOBAL']['output'], job_id, array_task_id)
+    else:
+        print("Running locally: skipping log movement.")
+
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+
 
 if __name__ == '__main__':
     try:
