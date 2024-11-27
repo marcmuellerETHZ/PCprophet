@@ -49,7 +49,7 @@ def setup_output_directory(base_output, sid_file):
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Create run folder (e.g., 20241101_103412_test1_16660190)
-    run_folder = f"{current_datetime}_{run_name}"
+    run_folder = f"{current_datetime}_{run_name}_{array_task_id}"
 
     # Create full run path
     full_run_path = os.path.join(base_output, run_folder)
