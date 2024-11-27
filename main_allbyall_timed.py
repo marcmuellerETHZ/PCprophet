@@ -29,10 +29,14 @@ def get_os():
 
 # I reorganized the output directory, such that for each run a new sub-directory is created which holds the tmp folder and all other outputs. 
 # Moving the tmp folder ensures uniqueness and resolves an issue where the content of a previous run in tmp would cause an error.
-def setup_output_directory(base_output, sid_file, job_id, array_task_id):
+def setup_output_directory(base_output, sid_file):
     """
     Ensure a unique output directory for each SLURM job by including the SLURM job ID.
     """
+
+    job_id = os.getenv("SLURM_JOB_ID", "local")
+    array_task_id = os.getenv("SLURM_ARRAY_TASK_ID", "0")
+
     # Ensure base output folder exists
     if not os.path.exists(base_output):
         os.makedirs(base_output)
@@ -61,7 +65,7 @@ def setup_output_directory(base_output, sid_file, job_id, array_task_id):
         f.write(f"export ANALYSIS_DIR={full_run_path}\n")
     return full_run_path, run_temp_folder
 
-def move_logs(output_dir, job_id, array_task_id="0"):
+def move_logs(output_dir, job_id, array_task_id):
     slurm_output_file = f"slurm_output_{job_id}_{array_task_id}.log"
     slurm_error_file = f"slurm_error_{job_id}_{array_task_id}.log"
     for file, dest in zip([slurm_output_file, slurm_error_file],
@@ -256,8 +260,6 @@ def preprocessing(infile, config, tmp_folder):
 
 
 def main():
-    job_id = os.getenv("SLURM_JOB_ID", "local")
-    array_task_id = os.getenv("SLURM_ARRAY_TASK_ID", "0")  # Default to "0" for non-array jobs
     config = create_config()
     validate.InputTester(config['GLOBAL']['db'], 'db').test_file()
     validate.InputTester(config['GLOBAL']['sid'], 'ids').test_file()
@@ -286,6 +288,10 @@ def main():
         config['GLOBAL']['output'],
         features,
     )
+
+    #Maybe write these to global env for access here and in setup_output_directory
+    job_id = os.getenv("SLURM_JOB_ID", "local")
+    array_task_id = os.getenv("SLURM_ARRAY_TASK_ID", "0")  # Default to "0" for non-array jobs
 
     if job_id:  # Perform log movement only if running under SLURM
         move_logs(config['GLOBAL']['output'], job_id, array_task_id)
