@@ -29,7 +29,7 @@ def get_os():
 
 # I reorganized the output directory, such that for each run a new sub-directory is created which holds the tmp folder and all other outputs. 
 # Moving the tmp folder ensures uniqueness and resolves an issue where the content of a previous run in tmp would cause an error.
-def setup_output_directory(base_output, sid_file):
+def setup_output_directory(base_output, sid_file, job_id, array_task_id):
     """
     Ensure a unique output directory for each SLURM job by including the SLURM job ID.
     """
@@ -42,9 +42,6 @@ def setup_output_directory(base_output, sid_file):
 
     # Get current datetime
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # Retrieve SLURM job ID (default to 'no_job_id' if not running in SLURM)
-    job_id = os.getenv("SLURM_JOB_ID", "local")
 
     # Create run folder (e.g., 20241101_103412_test1_16660190)
     run_folder = f"{current_datetime}_{run_name}_{job_id}"
@@ -59,7 +56,7 @@ def setup_output_directory(base_output, sid_file):
     os.makedirs(run_temp_folder, exist_ok=True)
 
     # Ensure slurm_analysis_dir is correctly populated with ANALYSIS_DIR
-    slurm_file_path = os.path.join(full_run_path, f"slurm_analysis_dir_{job_id}.sh")
+    slurm_file_path = os.path.join(full_run_path, f"slurm_analysis_dir_{job_id}_{array_task_id}.sh")
     with open(slurm_file_path, "w") as f:
         f.write(f"export ANALYSIS_DIR={full_run_path}\n")
     return full_run_path, run_temp_folder
@@ -259,6 +256,8 @@ def preprocessing(infile, config, tmp_folder):
 
 
 def main():
+    job_id = os.getenv("SLURM_JOB_ID", "local")
+    array_task_id = os.getenv("SLURM_ARRAY_TASK_ID", "0")  # Default to "0" for non-array jobs
     config = create_config()
     validate.InputTester(config['GLOBAL']['db'], 'db').test_file()
     validate.InputTester(config['GLOBAL']['sid'], 'ids').test_file()
@@ -287,10 +286,6 @@ def main():
         config['GLOBAL']['output'],
         features,
     )
-
-    # Move SLURM logs if running under SLURM
-    job_id = os.getenv("SLURM_JOB_ID", "local")
-    array_task_id = os.getenv("SLURM_ARRAY_TASK_ID", "0")  # Default to "0" for non-array jobs
 
     if job_id:  # Perform log movement only if running under SLURM
         move_logs(config['GLOBAL']['output'], job_id, array_task_id)
