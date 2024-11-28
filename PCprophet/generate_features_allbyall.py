@@ -1,17 +1,12 @@
 import re
 import sys
 import os
-import json
 import numpy as np
 import scipy.signal as signal
 import pandas as pd
-import random
-import matplotlib.pyplot as plt
 
 from dask import dataframe as dd
 from itertools import combinations
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_curve, auc, precision_recall_curve
 from scipy.ndimage import uniform_filter1d
 from scipy.ndimage import uniform_filter
 
@@ -57,7 +52,6 @@ def clean_profile(chromatogram, impute_NA=True, smooth=True, smooth_width=4, noi
     
     return cleaned
 
-@io.timeit
 def clean_prot_dict(prot_dict, impute_NA=True, smooth=True, smooth_width=4, noise_floor=0.001):
     """
     Clean all elution profiles in a protein dictionary.
