@@ -9,6 +9,7 @@ from dask import dataframe as dd
 from itertools import combinations
 from scipy.ndimage import uniform_filter1d
 from scipy.ndimage import uniform_filter
+from scipy.optimize import curve_fit
 
 import PCprophet.io_ as io
 
@@ -23,6 +24,37 @@ def generate_combinations(prot_dict):
     Generate all unique protein pairs from the provided protein dictionary.
     """
     return pd.DataFrame(list(combinations(prot_dict.keys(), 2)), columns=['ProteinA', 'ProteinB'])
+
+def min_max_scale_prot_dict(prot_dict):
+    """
+    Apply min/max scaling to the co-elution data in prot_dict.
+    
+    Parameters:
+    - prot_dict: Dictionary where keys are protein names and values are lists/arrays
+                 of co-elution intensities.
+    
+    Returns:
+    - scaled_prot_dict: Dictionary with scaled intensities.
+    """
+    prot_dict_scaled = {}
+    
+    for protein, intensities in prot_dict.items():
+        # Convert intensities to a NumPy array
+        intensities = np.array(intensities)
+        
+        # Min/max scaling
+        min_val = np.min(intensities)
+        max_val = np.max(intensities)
+        if max_val - min_val > 0:  # Avoid division by zero
+            scaled_intensities = (intensities - min_val) / (max_val - min_val)
+        else:
+            # If all values are the same, set them to 0 (or any consistent value)
+            scaled_intensities = np.zeros_like(intensities)
+        
+        # Add scaled values to the new dictionary
+        prot_dict_scaled[protein] = scaled_intensities
+    
+    return prot_dict_scaled
 
 def clean_profile(chromatogram, impute_NA=True, smooth=True, smooth_width=4, noise_floor=0.001):
     """
