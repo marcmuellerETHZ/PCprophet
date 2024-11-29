@@ -18,6 +18,12 @@ mute = np.testing.suppress_warnings()
 mute.filter(RuntimeWarning)
 mute.filter(module=np.ma.core)
 
+def generate_combinations(prot_dict):
+    """
+    Generate all unique protein pairs from the provided protein dictionary.
+    """
+    return pd.DataFrame(list(combinations(prot_dict.keys(), 2)), columns=['ProteinA', 'ProteinB'])
+
 def clean_profile(chromatogram, impute_NA=True, smooth=True, smooth_width=4, noise_floor=0.001):
     """
     Clean an elution profile by imputing missing values, adding noise, and smoothing.
@@ -74,11 +80,160 @@ def clean_prot_dict(prot_dict, impute_NA=True, smooth=True, smooth_width=4, nois
         )
     return cleaned_dict
 
-def generate_combinations(prot_dict):
+def make_initial_conditions(chromatogram, n_gaussians, method="guess", sigma_default=2, sigma_noise=0.5, mu_noise=1.5, A_noise=0.5):
     """
-    Generate all unique protein pairs from the provided protein dictionary.
+    Generate initial conditions for Gaussian fitting.
     """
-    return pd.DataFrame(list(combinations(prot_dict.keys(), 2)), columns=['ProteinA', 'ProteinB'])
+    if method == "guess":
+        # Identify local maxima
+        peaks = (np.diff(np.sign(np.diff(chromatogram))) == -2).nonzero()[0] + 1
+        peaks = np.append(peaks, [0, len(chromatogram) - 1])  # Include boundaries
+        peaks = peaks[np.argsort(-chromatogram[peaks])]  # Sort by height
+        
+        # Generate initial conditions
+        A = []
+        mu = []
+        sigma = []
+        for i in range(n_gaussians):
+            if i < len(peaks):
+                A.append(chromatogram[peaks[i]] + np.random.uniform(-A_noise, A_noise))
+                mu.append(peaks[i] + np.random.uniform(-mu_noise, mu_noise))
+                sigma.append(sigma_default + np.random.uniform(-sigma_noise, sigma_noise))
+            else:  # Fill with random values if not enough peaks
+                A.append(np.random.uniform(0, max(chromatogram)))
+                mu.append(np.random.uniform(0, len(chromatogram)))
+                sigma.append(sigma_default + np.random.uniform(-sigma_noise, sigma_noise))
+        return {"A": np.array(A), "mu": np.array(mu), "sigma": np.array(sigma)}
+    elif method == "random":
+        A = np.random.uniform(0, max(chromatogram), n_gaussians)
+        mu = np.random.uniform(0, len(chromatogram), n_gaussians)
+        sigma = sigma_default + np.random.uniform(-sigma_noise, sigma_noise, n_gaussians)
+        return {"A": A, "mu": mu, "sigma": sigma}
+
+def fit_curve(coefs, indices):
+    """
+    Compute the fitted curve from Gaussian coefficients.
+    """
+    A = coefs["A"]
+    mu = coefs["mu"]
+    sigma = coefs["sigma"]
+    gaussians = len(A)
+    return np.sum([A[i] * np.exp(-((indices - mu[i]) / sigma[i])**2) for i in range(gaussians)], axis=0)
+
+def fit_gaussians(chromatogram, n_gaussians, max_iterations=10, min_R_squared=0.5, method="guess",
+                  filter_gaussians_center=True, filter_gaussians_height=0.15,
+                  filter_gaussians_variance_min=0.1, filter_gaussians_variance_max=50):
+    """
+    Fit a mixture of Gaussians to a chromatogram.
+    """
+    indices = np.arange(len(chromatogram))
+    best_R2 = -np.inf
+    best_coefs = None
+    
+    for _ in range(max_iterations):
+        # Generate initial conditions
+        init = make_initial_conditions(chromatogram, n_gaussians, method)
+        A, mu, sigma = init["A"], init["mu"], init["sigma"]
+        
+        # Define Gaussian mixture model
+        def gaussian_model(x, *params):
+            gaussians = len(params) // 3
+            A, mu, sigma = np.split(np.array(params), 3)
+            return np.sum([A[i] * np.exp(-((x - mu[i]) / sigma[i])**2) for i in range(gaussians)], axis=0)
+        
+        # Flatten initial parameters
+        init_params = np.concatenate([A, mu, sigma])
+        
+        try:
+            # Perform curve fitting
+            popt, _ = curve_fit(gaussian_model, indices, chromatogram, p0=init_params, maxfev=5000)
+            # Extract fitted coefficients
+            coefs = {"A": popt[:n_gaussians], "mu": popt[n_gaussians:2*n_gaussians], "sigma": popt[2*n_gaussians:]}
+            curve_fit_result = fit_curve(coefs, indices)
+            
+            # Calculate R-squared
+            residual = chromatogram - curve_fit_result
+            ss_res = np.sum(residual**2)
+            ss_tot = np.sum((chromatogram - np.mean(chromatogram))**2)
+            R2 = 1 - (ss_res / ss_tot)
+            
+            if R2 > best_R2:
+                best_R2 = R2
+                best_coefs = coefs
+        except Exception:
+            continue
+    
+    return {"R2": best_R2, "coefs": best_coefs, "fit_curve": fit_curve(best_coefs, indices) if best_coefs else None}
+
+def gaussian_aicc(coefs, chromatogram):
+    """
+    Calculate the corrected Akaike Information Criterion (AICc).
+    """
+    n = len(chromatogram)  # Number of data points
+    k = len(coefs["A"]) * 3  # Number of parameters (A, mu, sigma for each Gaussian)
+    if k >= n - 1:
+        return np.inf  # Avoid division by zero or invalid AICc when parameters exceed data points
+    
+    rss = np.sum((chromatogram - fit_curve(coefs, np.arange(len(chromatogram))))**2)
+    aic = n * np.log(rss / n) + 2 * k
+    return aic + (2 * k * (k + 1)) / (n - k - 1)
+
+def gaussian_aic(coefs, chromatogram):
+    """
+    Calculate the Akaike Information Criterion (AIC).
+    """
+    n = len(chromatogram)  # Number of data points
+    k = len(coefs["A"]) * 3  # Number of parameters (A, mu, sigma for each Gaussian)
+    rss = np.sum((chromatogram - fit_curve(coefs, np.arange(len(chromatogram))))**2)
+    return n * np.log(rss / n) + 2 * k
+
+def gaussian_bic(coefs, chromatogram):
+    """
+    Calculate the Bayesian Information Criterion (BIC).
+    """
+    n = len(chromatogram)  # Number of data points
+    k = len(coefs["A"]) * 3  # Number of parameters (A, mu, sigma for each Gaussian)
+    rss = np.sum((chromatogram - fit_curve(coefs, np.arange(len(chromatogram))))**2)
+    return n * np.log(rss / n) + k * np.log(n)
+
+def choose_gaussians(chromatogram, points=None, max_gaussians=5, criterion="AICc",
+                     max_iterations=10, min_R_squared=0.5, method="guess",
+                     filter_gaussians_center=True, filter_gaussians_height=0.15,
+                     filter_gaussians_variance_min=0.1, filter_gaussians_variance_max=50):
+    """
+    Fit mixtures of Gaussians to a chromatogram and select the best model using an information criterion.
+    """
+    # Adjust max_gaussians based on available data points
+    if points is not None:
+        max_gaussians = min(max_gaussians, points // 3)
+    
+    # Fit models with increasing numbers of Gaussians
+    fits = []
+    for n_gaussians in range(1, max_gaussians + 1):
+        fit = fit_gaussians(chromatogram, n_gaussians, max_iterations, min_R_squared, method,
+                            filter_gaussians_center, filter_gaussians_height,
+                            filter_gaussians_variance_min, filter_gaussians_variance_max)
+        fits.append(fit)
+    
+    # Remove models that failed to fit
+    valid_fits = [fit for fit in fits if fit["coefs"] is not None]
+    if not valid_fits:
+        return None  # No valid fits
+    
+    # Calculate the chosen information criterion for each valid fit
+    if criterion == "AICc":
+        criteria = [gaussian_aicc(fit["coefs"], chromatogram) for fit in valid_fits]
+    elif criterion == "AIC":
+        criteria = [gaussian_aic(fit["coefs"], chromatogram) for fit in valid_fits]
+    elif criterion == "BIC":
+        criteria = [gaussian_bic(fit["coefs"], chromatogram) for fit in valid_fits]
+    else:
+        raise ValueError("Invalid criterion. Choose 'AICc', 'AIC', or 'BIC'.")
+    
+    # Select the model with the lowest criterion value
+    best_fit_index = np.argmin(criteria)
+    return valid_fits[best_fit_index]
+
 
 def calc_inv_euclidean_dist(elution_a, elution_b):
     diff = np.array(elution_a) - np.array(elution_b)
