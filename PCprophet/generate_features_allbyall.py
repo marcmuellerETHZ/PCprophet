@@ -19,11 +19,36 @@ mute = np.testing.suppress_warnings()
 mute.filter(RuntimeWarning)
 mute.filter(module=np.ma.core)
 
-def generate_combinations(prot_dict):
+def generate_combinations(prot_dict, min_overlap = 5):
     """
-    Generate all unique protein pairs from the provided protein dictionary.
+    Generate all unique protein pairs from the provided protein dictionary,
+    filtering out pairs with fewer than 5 common fraction measurements at the same location.
+
+    Parameters:
+        prot_dict (dict): A dictionary where keys are protein names and values are lists/arrays of intensities.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing valid protein pairs.
     """
-    return pd.DataFrame(list(combinations(prot_dict.keys(), 2)), columns=['ProteinA', 'ProteinB'])
+    pairs = list(combinations(prot_dict.keys(), 2))
+    print(f"Total pairs before filtering: {len(pairs)}")
+    valid_pairs = []
+
+    for prot_a, prot_b in pairs:
+        # Get the profiles for the two proteins
+        profile_a = np.array(prot_dict[prot_a])
+        profile_b = np.array(prot_dict[prot_b])
+
+        # Identify common valid measurements at the same locations
+        common_mask = ~np.isnan(profile_a) & ~np.isnan(profile_b)
+        common_count = np.sum(common_mask)
+
+        # Only keep the pair if there are at least 5 common measurements
+        if common_count >= min_overlap:
+            valid_pairs.append((prot_a, prot_b))
+
+    print(f"Total pairs after filtering: {len(valid_pairs)}")
+    return pd.DataFrame(valid_pairs, columns=['ProteinA', 'ProteinB'])
 
 def min_max_scale_prot_dict(prot_dict):
     """
@@ -157,8 +182,6 @@ def clean_prot_dict(prot_dict, impute_NA=True, smooth=True, smooth_width=4, nois
             noise_floor=noise_floor
         )
     return cleaned_dict
-
-
 
 def make_initial_conditions(chromatogram, n_gaussians, method="guess", sigma_default=2, sigma_noise=0.5, mu_noise=1.5, A_noise=0.5):
     """
