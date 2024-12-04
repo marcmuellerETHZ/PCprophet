@@ -112,6 +112,59 @@ def clean_prot_dict(prot_dict, impute_NA=True, smooth=True, smooth_width=4, nois
         )
     return cleaned_dict
 
+def remove_outliers(prot_dict, threshold):
+    """
+    Removes all intensity values from prot_dict where the corresponding z_scores_ms < threshold.
+
+    Parameters:
+        prot_dict (dict): A dictionary where keys are gene names and values are lists of intensity values.
+        threshold (float): The z-score threshold for identifying outliers.
+
+    Returns:
+        dict: A dictionary with outliers removed based on the threshold.
+    """
+    filtered_dict = {}
+    
+    for gene, intensities in prot_dict.items():
+        intensities = np.array(intensities)
+        
+        # Padding the first and last values
+        pad_start = np.concatenate(([intensities[0]], intensities))
+        pad_end = np.concatenate((intensities, [intensities[-1]]))
+
+        # Calculate the difference (pad_end - pad_start)
+        diff = pad_end - pad_start
+
+        # Combine squared differences of two neighboring points
+        ms = np.array([diff[i] * diff[i+1] for i in range(len(diff) - 1)])
+
+        # Calculate mean, standard deviation, and z-scores
+        mean_ms = np.mean(ms)
+        std_ms = np.std(ms)
+        z_scores_ms = (ms - mean_ms) / std_ms
+
+        # Create a mask where z_scores_ms < threshold
+        mask = z_scores_ms >= threshold
+
+        # Replace outlier intensities with the average of the preceding and following values
+        filtered_intensities = intensities.copy()
+        for i in range(len(filtered_intensities)):
+            if mask[i]:
+                if 0 < i < len(filtered_intensities) - 1:
+                    # Impute with the average of the previous and next values
+                    filtered_intensities[i] = (filtered_intensities[i - 1] + filtered_intensities[i + 1]) / 2.0
+                elif i == 0:
+                    # Handle the first element (no preceding value)
+                    filtered_intensities[i] = filtered_intensities[i + 1]
+                elif i == len(filtered_intensities) - 1:
+                    # Handle the last element (no following value)
+                    filtered_intensities[i] = filtered_intensities[i - 1]
+        
+        # Store the imputed intensities in the new dictionary
+        filtered_dict[gene] = filtered_intensities.tolist()
+    
+    return filtered_dict
+
 def make_initial_conditions(chromatogram, n_gaussians, method="guess", sigma_default=2, sigma_noise=0.5, mu_noise=1.5, A_noise=0.5):
     """
     Generate initial conditions for Gaussian fitting.
@@ -152,9 +205,9 @@ def fit_curve(coefs, indices):
     gaussians = len(A)
     return np.sum([A[i] * np.exp(-((indices - mu[i]) / sigma[i])**2) for i in range(gaussians)], axis=0)
 
-def fit_gaussians(chromatogram, n_gaussians, max_iterations=10, min_R_squared=0.5, method="guess",
-                  filter_gaussians_center=True, filter_gaussians_height=0.15,
-                  filter_gaussians_variance_min=0.1, filter_gaussians_variance_max=50):
+def fit_gaussians(chromatogram, n_gaussians, max_iterations, min_R_squared, method,
+                  filter_gaussians_center, filter_gaussians_height,
+                  filter_gaussians_variance_min, filter_gaussians_variance_max):
     """
     Fit a mixture of Gaussians to a chromatogram.
     """
@@ -347,14 +400,16 @@ def gen_feat(row, prot_dict, prot_dict_smooth, features):
     return results
 
 # wrapper
-@io.timeit
 def allbyall_feat(prot_dict, features, npartitions):
     """
     Wrapper to compute all-by-all pairwise features.
     """
     # Generate smoothened profiles
-    prot_dict_smooth = clean_prot_dict(prot_dict)
-
+    prot_dict_filtered = remove_outliers(prot_dict, threshold=-7)
+    prot_dict_scaled = min_max_scale_prot_dict(prot_dict_filtered)
+    prot_dict_smooth = clean_prot_dict(prot_dict_filtered)
+    prot_dict_smooth_scaled = min_max_scale_prot_dict(prot_dict_smooth)
+    
     for feature in features:
         print(feature)
 
@@ -364,7 +419,7 @@ def allbyall_feat(prot_dict, features, npartitions):
     # Partition and compute features
     ddf = dd.from_pandas(pairs, npartitions=npartitions)
     results = ddf.map_partitions(
-        lambda df: df.apply(lambda row: gen_feat(row, prot_dict, prot_dict_smooth, features), axis=1)
+        lambda df: df.apply(lambda row: gen_feat(row, prot_dict_scaled, prot_dict_smooth_scaled, features), axis=1)
     ).compute(scheduler='processes')
 
     results_df = pd.DataFrame(results.tolist())
