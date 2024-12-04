@@ -265,8 +265,9 @@ def read_txt(path, first_col="GN"):
             HoA[temp.get("GN")] = []
             for key in header:
                 try:
-                    HoA[temp.get("GN")].append(float(temp[key]))
-                except ValueError as v:
+                    value = temp[key]
+                    HoA[temp.get("GN")].append(np.nan if value.lower() == "na" else float(value))
+                except ValueError:
                     continue
 
     original_length = len(HoA)

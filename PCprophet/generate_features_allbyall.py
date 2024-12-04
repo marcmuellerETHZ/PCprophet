@@ -56,11 +56,54 @@ def min_max_scale_prot_dict(prot_dict):
     
     return prot_dict_scaled
 
+def remove_outliers(prot_dict, threshold):
+    """
+    Removes all intensity values from prot_dict where the corresponding z_scores_ms < threshold.
+
+    Parameters:
+        prot_dict (dict): A dictionary where keys are gene names and values are lists of intensity values.
+        threshold (float): The z-score threshold for identifying outliers.
+
+    Returns:
+        dict: A dictionary with outliers removed based on the threshold.
+    """
+    filtered_dict = {}
+    
+    for gene, intensities in prot_dict.items():
+        intensities = np.array(intensities)
+        
+        # Padding the first and last values
+        pad_start = np.concatenate(([intensities[0]], intensities))
+        pad_end = np.concatenate((intensities, [intensities[-1]]))
+
+        # Calculate the difference (pad_end - pad_start)
+        diff = pad_end - pad_start
+
+        # Combine squared differences of two neighboring points
+        ms = np.array([diff[i] * diff[i+1] for i in range(len(diff) - 1)])
+
+        # Calculate mean, standard deviation, and z-scores
+        mean_ms = np.mean(ms)
+        std_ms = np.std(ms)
+        z_scores_ms = (ms - mean_ms) / std_ms
+
+        # Create a mask where z_scores_ms < threshold
+        mask = z_scores_ms < threshold
+
+        # Replace outlier intensities with the average of the preceding and following values
+        filtered_intensities = intensities.copy()
+        filtered_intensities[mask] = np.nan
+        
+        # Store the imputed intensities in the new dictionary
+        filtered_dict[gene] = filtered_intensities.tolist()
+    
+    return filtered_dict
+
 def clean_profile(chromatogram, impute_NA=True, smooth=True, smooth_width=4, noise_floor=0.001):
     """
     Clean an elution profile by imputing missing values, adding noise, and smoothing.
     
-    Parameters:
+    Parameters: 
     - chromatogram: np.ndarray, the elution profile (1D array).
     - impute_NA: bool, if True, impute missing/zero values using neighboring averages.
     - smooth: bool, if True, apply a moving average filter.
@@ -101,8 +144,11 @@ def clean_prot_dict(prot_dict, impute_NA=True, smooth=True, smooth_width=4, nois
     Returns:
     - cleaned_dict: dict, {protein: cleaned elution profile}.
     """
+
+    prot_dict_scaled = min_max_scale_prot_dict(prot_dict)
+
     cleaned_dict = {}
-    for protein, chromatogram in prot_dict.items():
+    for protein, chromatogram in prot_dict_scaled.items():
         cleaned_dict[protein] = clean_profile(
             np.array(chromatogram),
             impute_NA=impute_NA,
@@ -112,58 +158,7 @@ def clean_prot_dict(prot_dict, impute_NA=True, smooth=True, smooth_width=4, nois
         )
     return cleaned_dict
 
-def remove_outliers(prot_dict, threshold):
-    """
-    Removes all intensity values from prot_dict where the corresponding z_scores_ms < threshold.
 
-    Parameters:
-        prot_dict (dict): A dictionary where keys are gene names and values are lists of intensity values.
-        threshold (float): The z-score threshold for identifying outliers.
-
-    Returns:
-        dict: A dictionary with outliers removed based on the threshold.
-    """
-    filtered_dict = {}
-    
-    for gene, intensities in prot_dict.items():
-        intensities = np.array(intensities)
-        
-        # Padding the first and last values
-        pad_start = np.concatenate(([intensities[0]], intensities))
-        pad_end = np.concatenate((intensities, [intensities[-1]]))
-
-        # Calculate the difference (pad_end - pad_start)
-        diff = pad_end - pad_start
-
-        # Combine squared differences of two neighboring points
-        ms = np.array([diff[i] * diff[i+1] for i in range(len(diff) - 1)])
-
-        # Calculate mean, standard deviation, and z-scores
-        mean_ms = np.mean(ms)
-        std_ms = np.std(ms)
-        z_scores_ms = (ms - mean_ms) / std_ms
-
-        # Create a mask where z_scores_ms < threshold
-        mask = z_scores_ms >= threshold
-
-        # Replace outlier intensities with the average of the preceding and following values
-        filtered_intensities = intensities.copy()
-        for i in range(len(filtered_intensities)):
-            if mask[i]:
-                if 0 < i < len(filtered_intensities) - 1:
-                    # Impute with the average of the previous and next values
-                    filtered_intensities[i] = (filtered_intensities[i - 1] + filtered_intensities[i + 1]) / 2.0
-                elif i == 0:
-                    # Handle the first element (no preceding value)
-                    filtered_intensities[i] = filtered_intensities[i + 1]
-                elif i == len(filtered_intensities) - 1:
-                    # Handle the last element (no following value)
-                    filtered_intensities[i] = filtered_intensities[i - 1]
-        
-        # Store the imputed intensities in the new dictionary
-        filtered_dict[gene] = filtered_intensities.tolist()
-    
-    return filtered_dict
 
 def make_initial_conditions(chromatogram, n_gaussians, method="guess", sigma_default=2, sigma_noise=0.5, mu_noise=1.5, A_noise=0.5):
     """
@@ -420,6 +415,8 @@ def gen_feat(row, prot_dict, prot_dict_smooth, features):
             results[feature] = np.nan
     return results
 
+
+
 # wrapper
 def allbyall_feat(prot_dict, features, npartitions):
     """
@@ -427,9 +424,8 @@ def allbyall_feat(prot_dict, features, npartitions):
     """
     # Generate smoothened profiles
     prot_dict_filtered = remove_outliers(prot_dict, threshold=-7)
-    prot_dict_scaled = min_max_scale_prot_dict(prot_dict_filtered)
-    prot_dict_smooth = clean_prot_dict(prot_dict_filtered)
-    prot_dict_smooth_scaled = min_max_scale_prot_dict(prot_dict_smooth)
+    prot_dict_scaled = clean_prot_dict(prot_dict_filtered, smooth=False)
+    prot_dict_smooth_scaled = clean_prot_dict(prot_dict_filtered, smooth=True)
     
     for feature in features:
         print(feature)
@@ -448,7 +444,6 @@ def allbyall_feat(prot_dict, features, npartitions):
     return results_df
 
 def runner(infile, tmp_folder, npartitions, features):
-
 
     os.makedirs(tmp_folder, exist_ok=True)
 
