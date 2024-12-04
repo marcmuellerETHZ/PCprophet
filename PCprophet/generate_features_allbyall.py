@@ -369,6 +369,25 @@ def sliding_window_correlation(a, b, metric, W=10):
     return return_cor
 
 
+def co_peak(a, b):
+    """
+    Calculate the absolute difference
+    between the indices of the maximum values of two elution profiles.
+
+    Parameters:
+        a: The first elution profile.
+        b: The second elution profile.
+
+    Returns:
+        int: The absolute difference between the indices of the maximum values.
+    """
+    # Find the indices of the maximum values for both profiles
+    max_a = np.argmax(a)
+    max_b = np.argmax(b)
+    
+    # Calculate the absolute difference
+    return abs(max_a - max_b)
+
 
 def gen_feat(row, prot_dict, prot_dict_smooth, features):
     """
@@ -392,6 +411,8 @@ def gen_feat(row, prot_dict, prot_dict_smooth, features):
                 results[feature] = sliding_window_correlation(raw_a, raw_b, np.nanmax)
             elif feature == 'mean_sliding_window_correlation_raw':
                 results[feature] = sliding_window_correlation(raw_a, raw_b, np.nanmean)
+            elif feature == 'co_peak_smooth':
+                results[feature] = co_peak(smooth_a, smooth_b)
             else:
                 results[feature] = np.nan
     else:
