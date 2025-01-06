@@ -13,8 +13,6 @@ from scipy.optimize import curve_fit
 
 import PCprophet.io_ as io
 
-np.seterr(all="ignore")
-# silence the division by 0 in the correlation calc
 mute = np.testing.suppress_warnings()
 mute.filter(RuntimeWarning)
 mute.filter(module=np.ma.core)
@@ -104,7 +102,7 @@ def remove_outliers(prot_dict, threshold):
         # Calculate the difference (pad_end - pad_start)
         diff = pad_end - pad_start
 
-        # Combine squared differences of two neighboring points
+        # Combine differences of two neighboring points
         ms = np.array([diff[i] * diff[i+1] for i in range(len(diff) - 1)])
 
         # Calculate mean, standard deviation, and z-scores
@@ -352,37 +350,49 @@ def calc_inv_euclidean_dist(elution_a, elution_b):
 
 def sliding_window_correlation(a, b, metric, W=10):
     """
-    vectorized correlation between pairs vectors with sliding window
+    Vectorized correlation between pairs of vectors with sliding window, robust to NaNs.
+
+    Parameters:
+    - a, b: Input arrays.
+    - metric: A function to compute the desired statistic (e.g., np.nanmean, np.nanmax).
+    - W: Window size (int).
+
+    Returns:
+    - Computed metric value over sliding windows.
     """
     cor = []
 
-    aa = np.array(a)
-    bb = np.array(b)
-    
-    am = uniform_filter(aa.astype(float), W)
-    bm = uniform_filter(bb.astype(float), W)
+    # Convert to numpy arrays
+    aa = np.array(a, dtype=float)
+    bb = np.array(b, dtype=float)
 
-    amc = am[W // 2 : -W // 2 + 1]
-    bmc = bm[W // 2 : -W // 2 + 1]
+    # Compute sliding window means
+    am = uniform_filter(aa, size=W, mode='constant', origin=-(W // 2))
+    bm = uniform_filter(bb, size=W, mode='constant', origin=-(W // 2))
 
-    da = aa[:, None] - amc
-    db = bb[:, None] - bmc
+    # Compute deviations from means
+    da = aa - am
+    db = bb - bm
 
-    # Get sliding mask of valid windows
-    m, n = da.shape
-    mask1 = np.arange(m)[:, None] >= np.arange(n)
-    mask2 = np.arange(m)[:, None] < np.arange(n) + W
-    mask = mask1 & mask2
-    dam = da * mask
-    dbm = db * mask
+    # Compute sums of squares and cross-products
+    ssAs = uniform_filter(da**2, size=W, mode='constant', origin=-(W // 2))
+    ssBs = uniform_filter(db**2, size=W, mode='constant', origin=-(W // 2))
+    D = uniform_filter(da * db, size=W, mode='constant', origin=-(W // 2))
 
-    ssAs = np.einsum("ij,ij->j", dam, dam)
-    ssBs = np.einsum("ij,ij->j", dbm, dbm)
-    D = np.einsum("ij,ij->j", dam, dbm)
-    # add np.nan to reach 72
-    cor.append(np.hstack((D / np.sqrt(ssAs * ssBs), np.zeros(9) + np.nan)))
+    # Avoid division by zero
+    denominator = np.sqrt(ssAs * ssBs)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        cor_array = np.where(denominator != 0, D / denominator, np.nan)
 
-    return_cor = metric(cor)
+    # Append NaNs to maintain original behavior
+    cor.append(np.hstack((cor_array, np.full(9, np.nan))))
+
+    # Handle cases where metric(cor) fails
+    try:
+        return_cor = metric(cor)
+    except ValueError:  # Handle cases like all-NaN axis or empty slice
+        print("Warning: Unable to compute metric due to NaNs or empty array.")
+        return_cor = np.nan
 
     return return_cor
 

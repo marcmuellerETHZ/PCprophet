@@ -35,6 +35,7 @@ def fit_logistic_model(features_df_label, feature):
     ground_truth_pos = y.sum()/len(y)
 
     model = LogisticRegression()
+    #model = LogisticRegression(penalty=None, class_weigh='balanced', fit_intercept=True, solver='newton-cholesky)
     model.fit(X, y)
 
     y_scores = model.predict_proba(X)[:, 1]
