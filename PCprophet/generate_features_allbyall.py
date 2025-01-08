@@ -476,7 +476,8 @@ def gen_feat(row, prot_dict, prot_dict_smooth, gauss_dict, features):
     prot_a, prot_b = row['ProteinA'], row['ProteinB']
     raw_a, raw_b = prot_dict.get(prot_a), prot_dict.get(prot_b)
     smooth_a, smooth_b = prot_dict_smooth.get(prot_a), prot_dict_smooth.get(prot_b)
-    gauss_a, gauss_b = gauss_dict.get(prot_a, {}), gauss_dict.get(prot_b, {})
+    if gauss_dict:
+        gauss_a, gauss_b = gauss_dict.get(prot_a, {}), gauss_dict.get(prot_b, {})
 
     # Initialize results with protein pair
     results = {'ProteinA': prot_a, 'ProteinB': prot_b}
@@ -516,35 +517,40 @@ def allbyall_feat(prot_dict, features, npartitions):
     prot_dict_scaled = clean_prot_dict(prot_dict_filtered, smooth=False)
     prot_dict_smooth_scaled = clean_prot_dict(prot_dict_filtered, smooth=True)
 
-    start_gaussian_fitting = time.time()
+    if any("_gauss" in feature for feature in features):
 
-    # Generate Gaussian fits using Dask delayed
-    tasks = [
-        delayed(choose_gaussian_for_protein)(protein, profile)
-        for protein, profile in prot_dict_smooth_scaled.items()
-    ]
-    results = compute(*tasks)
-    gauss_dict = {protein: fit_result for protein, fit_result in results if fit_result is not None}
+        start_gaussian_fitting = time.time()
 
-    # Log Gaussian fitting time
-    end_gaussian_fitting = time.time()
-    print(f"Gaussian fitting completed in {end_gaussian_fitting - start_gaussian_fitting:.2f} seconds.")
+        # Generate Gaussian fits using Dask delayed
+        tasks = [
+            delayed(choose_gaussian_for_protein)(protein, profile)
+            for protein, profile in prot_dict_smooth_scaled.items()
+        ]
+        results = compute(*tasks)
+        gauss_dict = {protein: fit_result for protein, fit_result in results if fit_result is not None}
 
-    # Filter out proteins with failed Gaussian fits
-    valid_proteins = [
-        protein for protein, gauss_fit in gauss_dict.items()
-        if gauss_fit is not None and 'coefs' in gauss_fit and gauss_fit['coefs'] is not None
-    ]
-    num_removed = len(prot_dict) - len(valid_proteins)
+        # Log Gaussian fitting time
+        end_gaussian_fitting = time.time()
+        print(f"Gaussian fitting completed in {end_gaussian_fitting - start_gaussian_fitting:.2f} seconds.")
 
-    # Filter all dictionaries to retain only valid proteins
-    prot_dict_scaled = {protein: profile for protein, profile in prot_dict_scaled.items() if protein in valid_proteins}
-    prot_dict_smooth_scaled = {
-        protein: profile for protein, profile in prot_dict_smooth_scaled.items() if protein in valid_proteins
-    }
-    gauss_dict = {protein: gauss_fit for protein, gauss_fit in gauss_dict.items() if protein in valid_proteins}
+        # Filter out proteins with failed Gaussian fits
+        valid_proteins = [
+            protein for protein, gauss_fit in gauss_dict.items()
+            if gauss_fit is not None and 'coefs' in gauss_fit and gauss_fit['coefs'] is not None
+        ]
+        num_removed = len(prot_dict) - len(valid_proteins)
 
-    print(f"Number of proteins removed due to unsuccessful Gaussian fitting: {num_removed}")
+        # Filter all dictionaries to retain only valid proteins
+        prot_dict_scaled = {protein: profile for protein, profile in prot_dict_scaled.items() if protein in valid_proteins}
+        prot_dict_smooth_scaled = {
+            protein: profile for protein, profile in prot_dict_smooth_scaled.items() if protein in valid_proteins
+        }
+        gauss_dict = {protein: gauss_fit for protein, gauss_fit in gauss_dict.items() if protein in valid_proteins}
+
+        print(f"Number of proteins removed due to unsuccessful Gaussian fitting: {num_removed}")
+
+    else:
+        gauss_dict = {}
 
     for feature in features:
         print(feature)

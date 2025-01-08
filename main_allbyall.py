@@ -15,6 +15,7 @@ from PCprophet import generate_features_allbyall as generate_features_allbyall
 from PCprophet import plots_allbyall as plots
 from PCprophet import validate_input as validate
 from PCprophet import fit_model
+from PCprophet import random_forest
 
 class ParserHelper(argparse.ArgumentParser):
     def error(self, message):
@@ -239,7 +240,7 @@ def preprocessing(infile, config, tmp_folder):
                   'euclidean_distance_smooth',
                   'max_sliding_window_correlation_raw',
                   'mean_sliding_window_correlation_raw',
-                  'co_peak_gauss',
+                  #'co_peak_gauss',
                   'co_peak_max_smooth'],
     )
     return True
@@ -257,7 +258,7 @@ def main():
                 'euclidean_distance_smooth',
                 'max_sliding_window_correlation_raw',
                 'mean_sliding_window_correlation_raw',
-                'co_peak_gauss',
+                #'co_peak_gauss',
                 'co_peak_max_smooth']
     
     # skip feature generation
@@ -270,6 +271,8 @@ def main():
         config['GLOBAL']['db'],
         features,
     )
+
+    random_forest.runner(config, features)
 
     plots.runner(
         config['GLOBAL']['temp'],
