@@ -404,8 +404,29 @@ def sliding_window_correlation(a, b, metric, W=10):
 
     return return_cor
 
+def co_peak_gauss(a_gaussians, b_gaussians):
+    """
+    Calculate the minimum absolute difference between the centers of the fitted Gaussians
+    for two elution profiles.
 
-def co_peak(a, b):
+    Parameters:
+        a_gaussians: Gaussian parameters (dictionary) for the first elution profile.
+        b_gaussians: Gaussian parameters (dictionary) for the second elution profile.
+
+    Returns:
+        float: The minimum absolute difference between the Gaussian centers.
+    """
+    mu_a = a_gaussians.get('mu', [])
+    mu_b = b_gaussians.get('mu', [])
+
+    if not mu_a or not mu_b:
+        return np.nan  # Return NaN if no centers are available
+
+    # Calculate pairwise absolute differences between centers
+    diff_matrix = np.abs(np.subtract.outer(mu_a, mu_b))
+    return np.min(diff_matrix)  # Return the smallest difference
+
+def co_peak_max(a, b):
     """
     Calculate the absolute difference
     between the indices of the maximum values of two elution profiles.
@@ -425,13 +446,14 @@ def co_peak(a, b):
     return abs(max_a - max_b)
 
 
-def gen_feat(row, prot_dict, prot_dict_smooth, features):
+def gen_feat(row, prot_dict, prot_dict_smooth, gauss_dict, features):
     """
     Compute specified features for a pair of proteins.
     """
     prot_a, prot_b = row['ProteinA'], row['ProteinB']
     raw_a, raw_b = prot_dict.get(prot_a), prot_dict.get(prot_b)
     smooth_a, smooth_b = prot_dict_smooth.get(prot_a), prot_dict_smooth.get(prot_b)
+    gauss_a, gauss_b = gauss_dict.get(prot_a, {}), gauss_dict.get(prot_b, {})
 
     # Initialize results with protein pair
     results = {'ProteinA': prot_a, 'ProteinB': prot_b}
@@ -447,8 +469,10 @@ def gen_feat(row, prot_dict, prot_dict_smooth, features):
                 results[feature] = sliding_window_correlation(raw_a, raw_b, np.nanmax)
             elif feature == 'mean_sliding_window_correlation_raw':
                 results[feature] = sliding_window_correlation(raw_a, raw_b, np.nanmean)
-            elif feature == 'co_peak_smooth':
-                results[feature] = co_peak(smooth_a, smooth_b)
+            elif feature == 'co_peak_gauss':
+                results[feature] = co_peak_gauss(gauss_a, gauss_b)
+            elif feature == 'co_peak_max_smooth':
+                results[feature] = co_peak_max(smooth_a, smooth_b)
             else:
                 results[feature] = np.nan
     else:
@@ -467,6 +491,10 @@ def allbyall_feat(prot_dict, features, npartitions):
     prot_dict_filtered = remove_outliers(prot_dict, threshold=-7)
     prot_dict_scaled = clean_prot_dict(prot_dict_filtered, smooth=False)
     prot_dict_smooth_scaled = clean_prot_dict(prot_dict_filtered, smooth=True)
+    gauss_dict = {
+        protein: choose_gaussians(profile, max_gaussians=6, criterion="BIC")
+        for protein, profile in prot_dict_smooth_scaled.items()
+    }
     
     for feature in features:
         print(feature)
@@ -477,7 +505,7 @@ def allbyall_feat(prot_dict, features, npartitions):
     # Partition and compute features
     ddf = dd.from_pandas(pairs, npartitions=npartitions)
     results = ddf.map_partitions(
-        lambda df: df.apply(lambda row: gen_feat(row, prot_dict_scaled, prot_dict_smooth_scaled, features), axis=1)
+        lambda df: df.apply(lambda row: gen_feat(row, prot_dict_scaled, prot_dict_smooth_scaled, gauss_dict, features), axis=1)
     ).compute(scheduler='processes')
 
     results_df = pd.DataFrame(results.tolist())

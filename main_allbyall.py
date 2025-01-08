@@ -239,7 +239,7 @@ def preprocessing(infile, config, tmp_folder):
                   'euclidean_distance_smooth',
                   'max_sliding_window_correlation_raw',
                   'mean_sliding_window_correlation_raw',
-                  'co_peak_smooth'],
+                  'co_peak_gauss'],
     )
     return True
 
@@ -256,7 +256,7 @@ def main():
                 'euclidean_distance_smooth',
                 'max_sliding_window_correlation_raw',
                 'mean_sliding_window_correlation_raw',
-                'co_peak_smooth']
+                'co_peak_gauss']
     
     # skip feature generation
     if config['GLOBAL']['skip'] == 'False':
