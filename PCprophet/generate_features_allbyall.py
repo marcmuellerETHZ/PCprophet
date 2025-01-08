@@ -17,6 +17,34 @@ mute = np.testing.suppress_warnings()
 mute.filter(RuntimeWarning)
 mute.filter(module=np.ma.core)
 
+def filter_invalid_chromatograms(prot_dict):
+    """
+    Filter out proteins with invalid or empty chromatograms and log the removed entries.
+
+    Parameters:
+        prot_dict (dict): Dictionary of protein chromatograms.
+
+    Returns:
+        dict: Filtered dictionary with only valid chromatograms.
+    """
+    valid_proteins = {}
+    invalid_proteins = []
+
+    for protein, chromatogram in prot_dict.items():
+        # Check if the chromatogram is valid
+        if chromatogram is None or len(chromatogram) == 0 or np.all(np.isnan(chromatogram)):
+            invalid_proteins.append(protein)
+        else:
+            valid_proteins[protein] = chromatogram
+
+    # Log the number of invalid chromatograms
+    print(f"Number of proteins removed due to invalid chromatograms: {len(invalid_proteins)}")
+    if invalid_proteins:
+        print(f"Invalid proteins: {invalid_proteins[:10]}{'...' if len(invalid_proteins) > 10 else ''}")
+
+    return valid_proteins
+
+
 def generate_combinations(prot_dict, min_overlap = 5):
     """
     Generate all unique protein pairs from the provided protein dictionary,
@@ -498,6 +526,9 @@ def allbyall_feat(prot_dict, features, npartitions):
     """
     Wrapper to compute all-by-all pairwise features.
     """
+
+    prot_dict = filter_invalid_chromatograms(prot_dict)
+
     # Generate smoothened profiles
     prot_dict_filtered = remove_outliers(prot_dict, threshold=-7)
     prot_dict_scaled = clean_prot_dict(prot_dict_filtered, smooth=False)
