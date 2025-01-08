@@ -5,6 +5,7 @@ import numpy as np
 import scipy.signal as signal
 import pandas as pd
 
+import time
 from dask import dataframe as dd
 from dask import delayed, compute
 from itertools import combinations
@@ -515,6 +516,8 @@ def allbyall_feat(prot_dict, features, npartitions):
     prot_dict_scaled = clean_prot_dict(prot_dict_filtered, smooth=False)
     prot_dict_smooth_scaled = clean_prot_dict(prot_dict_filtered, smooth=True)
 
+    start_gaussian_fitting = time.time()
+
     # Generate Gaussian fits using Dask delayed
     tasks = [
         delayed(choose_gaussian_for_protein)(protein, profile)
@@ -523,9 +526,9 @@ def allbyall_feat(prot_dict, features, npartitions):
     results = compute(*tasks)
     gauss_dict = {protein: fit_result for protein, fit_result in results if fit_result is not None}
 
-    # Log skipped proteins
-    num_skipped = len(prot_dict_smooth_scaled) - len(gauss_dict)
-    print(f"Number of proteins skipped due to invalid profiles or fitting errors: {num_skipped}")
+    # Log Gaussian fitting time
+    end_gaussian_fitting = time.time()
+    print(f"Gaussian fitting completed in {end_gaussian_fitting - start_gaussian_fitting:.2f} seconds.")
 
     # Filter out proteins with failed Gaussian fits
     valid_proteins = [
@@ -549,6 +552,8 @@ def allbyall_feat(prot_dict, features, npartitions):
     # Generate all protein pairs
     pairs = generate_combinations(prot_dict)
 
+    start_feature_calculation = time.time()
+
     # Partition and compute features
     ddf = dd.from_pandas(pairs, npartitions=npartitions)
     results = ddf.map_partitions(
@@ -556,6 +561,11 @@ def allbyall_feat(prot_dict, features, npartitions):
     ).compute(scheduler='processes')
 
     results_df = pd.DataFrame(results.tolist())
+
+    # Log feature calculation time
+    end_feature_calculation = time.time()
+    print(f"Feature calculation completed in {end_feature_calculation - start_feature_calculation:.2f} seconds.")
+
 
     return results_df
 
