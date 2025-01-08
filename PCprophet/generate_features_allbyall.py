@@ -6,6 +6,7 @@ import scipy.signal as signal
 import pandas as pd
 
 from dask import dataframe as dd
+from dask import delayed, compute
 from itertools import combinations
 from scipy.ndimage import uniform_filter1d
 from scipy.ndimage import uniform_filter
@@ -193,13 +194,7 @@ def make_initial_conditions(chromatogram, n_gaussians, method="guess", sigma_def
     """
     Generate initial conditions for Gaussian fitting.
     """
-
-    # Ensure chromatogram is valid
-    if chromatogram is None or not isinstance(chromatogram, (np.ndarray, list)):
-        return None  # Skip invalid chromatograms
-    if len(chromatogram) == 0 or np.all(np.isnan(chromatogram)):
-        return None  # Skip empty or NaN-only chromatograms
-    
+   
     if method == "guess":
         # Identify local maxima
         peaks = (np.diff(np.sign(np.diff(chromatogram))) == -2).nonzero()[0] + 1
@@ -249,8 +244,6 @@ def fit_gaussians(chromatogram, n_gaussians, max_iterations, min_R_squared, meth
     for _ in range(max_iterations):
         # Generate initial conditions
         init = make_initial_conditions(chromatogram, n_gaussians, method)
-        if init is None:  # Skip invalid chromatograms
-            return None
         
         A, mu, sigma = init["A"], init["mu"], init["sigma"]
         
@@ -353,32 +346,21 @@ def choose_gaussians(chromatogram, points=None, max_gaussians=5, criterion="AICc
     best_fit_index = np.argmin(criteria)
     return valid_fits[best_fit_index]
 
-def fit_gaussians_partition(partition):
-    results = {}
-    for _, row in partition.iterrows():
-        protein = row['Protein']
-        profile = row['Profile']
+def choose_gaussian_for_protein(protein, profile):
+    """
+    Perform Gaussian fitting for a single protein with Dask delayed.
+    """
+    try:
+        if profile is None or len(profile) == 0 or np.all(np.isnan(profile)):
+            print(f"Skipping invalid profile for protein: {protein}")
+            return protein, None
 
-        # Debugging print statements
-        print(f"Processing protein: {protein}, Profile type: {type(profile)}")
-        print(f"Current results keys: {results.keys()}")
+        fit_result = choose_gaussians(profile, max_gaussians=5, criterion="BIC")
+        return protein, fit_result
 
-        # Validate profile type
-        if not isinstance(profile, (np.ndarray, list)) or len(profile) == 0 or np.all(np.isnan(profile)):
-            print(f"Skipping invalid profile for protein: {protein}. Profile: {profile}")
-            results[protein] = None  # This line may be causing issues
-            continue
-
-        # Perform Gaussian fitting
-        try:
-            fit_result = choose_gaussians(profile, max_gaussians=5, criterion="BIC")
-        except Exception as e:
-            print(f"Error while fitting Gaussians for protein: {protein}. Profile: {profile}. Error: {e}")
-            fit_result = None
-
-        results[protein] = fit_result
-
-    return pd.DataFrame({'Protein': list(results.keys()), 'GaussianFit': list(results.values())})
+    except Exception as e:
+        print(f"Error while fitting Gaussians for protein: {protein}. Profile: {profile}. Error: {e}")
+        return protein, None
 
 
 
@@ -533,24 +515,17 @@ def allbyall_feat(prot_dict, features, npartitions):
     prot_dict_scaled = clean_prot_dict(prot_dict_filtered, smooth=False)
     prot_dict_smooth_scaled = clean_prot_dict(prot_dict_filtered, smooth=True)
 
-    # Filter out invalid profiles
-    prot_dict_smooth_scaled = {
-        protein: profile for protein, profile in prot_dict_smooth_scaled.items()
-        if isinstance(profile, (np.ndarray, list)) and len(profile) > 0 and not np.all(np.isnan(profile))
-        }
+    # Generate Gaussian fits using Dask delayed
+    tasks = [
+        delayed(choose_gaussian_for_protein)(protein, profile)
+        for protein, profile in prot_dict_smooth_scaled.items()
+    ]
+    results = compute(*tasks)
+    gauss_dict = {protein: fit_result for protein, fit_result in results if fit_result is not None}
 
-    # Convert prot_dict_smooth_scaled to a Dask DataFrame
-    prot_df = pd.DataFrame({
-        'Protein': prot_dict_smooth_scaled.keys(),
-        'Profile': prot_dict_smooth_scaled.values()
-    })
-    ddf = dd.from_pandas(prot_df, npartitions=npartitions)
-
-    fitted_ddf = ddf.map_partitions(fit_gaussians_partition, meta={'Protein': str, 'GaussianFit': object})
-    fitted_results = fitted_ddf.compute()
-
-    # Convert fitted results to dictionary
-    gauss_dict = dict(zip(fitted_results['Protein'], fitted_results['GaussianFit']))
+    # Log skipped proteins
+    num_skipped = len(prot_dict_smooth_scaled) - len(gauss_dict)
+    print(f"Number of proteins skipped due to invalid profiles or fitting errors: {num_skipped}")
 
     # Filter out proteins with failed Gaussian fits
     valid_proteins = [
