@@ -343,6 +343,16 @@ def choose_gaussians(chromatogram, points=None, max_gaussians=5, criterion="AICc
     best_fit_index = np.argmin(criteria)
     return valid_fits[best_fit_index]
 
+# Parallel Gaussian fitting using map_partitions
+def fit_gaussians_partition(partition):
+    results = {}
+    for _, row in partition.iterrows():
+        protein = row['Protein']
+        profile = row['Profile']
+        fit_result = choose_gaussians(profile, max_gaussians=5, criterion="BIC")
+        results[protein] = fit_result
+    return pd.DataFrame({'Protein': list(results.keys()), 'GaussianFit': list(results.values())})
+
 
 def calc_inv_euclidean_dist(elution_a, elution_b):
     diff = np.array(elution_a) - np.array(elution_b)
@@ -410,14 +420,15 @@ def co_peak_gauss(a_gaussians, b_gaussians):
     for two elution profiles.
 
     Parameters:
-        a_gaussians: Gaussian parameters (dictionary) for the first elution profile.
-        b_gaussians: Gaussian parameters (dictionary) for the second elution profile.
+        a_gaussians: Gaussian fitting result for the first elution profile (dictionary).
+        b_gaussians: Gaussian fitting result for the second elution profile (dictionary).
 
     Returns:
         float: The minimum absolute difference between the Gaussian centers.
     """
-    mu_a = a_gaussians.get('mu', [])
-    mu_b = b_gaussians.get('mu', [])
+    # Extract 'mu' from the 'coefs' key if available
+    mu_a = a_gaussians.get("coefs", {}).get("mu", [])
+    mu_b = b_gaussians.get("coefs", {}).get("mu", [])
 
     if not mu_a or not mu_b:
         return np.nan  # Return NaN if no centers are available
@@ -491,11 +502,36 @@ def allbyall_feat(prot_dict, features, npartitions):
     prot_dict_filtered = remove_outliers(prot_dict, threshold=-7)
     prot_dict_scaled = clean_prot_dict(prot_dict_filtered, smooth=False)
     prot_dict_smooth_scaled = clean_prot_dict(prot_dict_filtered, smooth=True)
-    gauss_dict = {
-        protein: choose_gaussians(profile, max_gaussians=6, criterion="BIC")
-        for protein, profile in prot_dict_smooth_scaled.items()
+
+    # Convert prot_dict_smooth_scaled to a Dask DataFrame
+    prot_df = pd.DataFrame({
+        'Protein': prot_dict_smooth_scaled.keys(),
+        'Profile': prot_dict_smooth_scaled.values()
+    })
+    ddf = dd.from_pandas(prot_df, npartitions=npartitions)
+
+    fitted_ddf = ddf.map_partitions(fit_gaussians_partition, meta={'Protein': str, 'GaussianFit': object})
+    fitted_results = fitted_ddf.compute()
+
+    # Convert fitted results to dictionary
+    gauss_dict = dict(zip(fitted_results['Protein'], fitted_results['GaussianFit']))
+
+    # Filter out proteins with failed Gaussian fits
+    valid_proteins = [
+        protein for protein, gauss_fit in gauss_dict.items()
+        if gauss_fit is not None and 'coefs' in gauss_fit and gauss_fit['coefs'] is not None
+    ]
+    num_removed = len(prot_dict) - len(valid_proteins)
+
+    # Filter all dictionaries to retain only valid proteins
+    prot_dict_scaled = {protein: profile for protein, profile in prot_dict_scaled.items() if protein in valid_proteins}
+    prot_dict_smooth_scaled = {
+        protein: profile for protein, profile in prot_dict_smooth_scaled.items() if protein in valid_proteins
     }
-    
+    gauss_dict = {protein: gauss_fit for protein, gauss_fit in gauss_dict.items() if protein in valid_proteins}
+
+    print(f"Number of proteins removed due to unsuccessful Gaussian fitting: {num_removed}")
+
     for feature in features:
         print(feature)
 
