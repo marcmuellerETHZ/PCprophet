@@ -82,13 +82,14 @@ def min_max_scale_prot_dict(prot_dict):
 def remove_outliers(prot_dict, threshold):
     """
     Removes all intensity values from prot_dict where the corresponding z_scores_ms < threshold.
+    Outlier values are replaced with the average of their preceding and following values.
 
     Parameters:
         prot_dict (dict): A dictionary where keys are gene names and values are lists of intensity values.
         threshold (float): The z-score threshold for identifying outliers.
 
     Returns:
-        dict: A dictionary with outliers removed based on the threshold.
+        dict: A dictionary with outliers replaced based on the threshold.
     """
     filtered_dict = {}
     
@@ -102,7 +103,7 @@ def remove_outliers(prot_dict, threshold):
         # Calculate the difference (pad_end - pad_start)
         diff = pad_end - pad_start
 
-        # Combine differences of two neighboring points
+        # Combine squared differences of two neighboring points
         ms = np.array([diff[i] * diff[i+1] for i in range(len(diff) - 1)])
 
         # Calculate mean, standard deviation, and z-scores
@@ -110,12 +111,19 @@ def remove_outliers(prot_dict, threshold):
         std_ms = np.std(ms)
         z_scores_ms = (ms - mean_ms) / std_ms
 
-        # Create a mask where z_scores_ms < threshold
-        mask = z_scores_ms < threshold
+        # Create a mask for outlier indices
+        outlier_indices = np.where(z_scores_ms < threshold)[0]
 
-        # Replace outlier intensities with the average of the preceding and following values
+        # Replace outlier intensities with the average of preceding and following values
         filtered_intensities = intensities.copy()
-        filtered_intensities[mask] = np.nan
+        for idx in outlier_indices:
+            if 0 < idx < len(filtered_intensities) - 1:
+                # Replace with the average of the neighboring values
+                filtered_intensities[idx] = (filtered_intensities[idx - 1] + filtered_intensities[idx + 1]) / 2
+            elif idx == 0:  # Handle edge case for the first element
+                filtered_intensities[idx] = filtered_intensities[idx + 1]
+            elif idx == len(filtered_intensities) - 1:  # Handle edge case for the last element
+                filtered_intensities[idx] = filtered_intensities[idx - 1]
         
         # Store the imputed intensities in the new dictionary
         filtered_dict[gene] = filtered_intensities.tolist()
