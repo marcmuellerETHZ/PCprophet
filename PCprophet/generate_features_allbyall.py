@@ -195,8 +195,10 @@ def make_initial_conditions(chromatogram, n_gaussians, method="guess", sigma_def
     """
 
     # Ensure chromatogram is valid
-    if chromatogram is None or len(chromatogram) == 0 or np.all(np.isnan(chromatogram)):
-        return None  # Return None for invalid chromatograms
+    if chromatogram is None or not isinstance(chromatogram, (np.ndarray, list)):
+        return None  # Skip invalid chromatograms
+    if len(chromatogram) == 0 or np.all(np.isnan(chromatogram)):
+        return None  # Skip empty or NaN-only chromatograms
     
     if method == "guess":
         # Identify local maxima
@@ -357,6 +359,13 @@ def fit_gaussians_partition(partition):
     for _, row in partition.iterrows():
         protein = row['Protein']
         profile = row['Profile']
+
+        # Validate profile type
+        if not isinstance(profile, (np.ndarray, list)) or len(profile) == 0 or np.all(np.isnan(profile)):
+            print(f"Skipping invalid profile for protein: {protein}")
+            results[protein] = None
+            continue
+
         fit_result = choose_gaussians(profile, max_gaussians=5, criterion="BIC")
         results[protein] = fit_result
     return pd.DataFrame({'Protein': list(results.keys()), 'GaussianFit': list(results.values())})
@@ -512,6 +521,12 @@ def allbyall_feat(prot_dict, features, npartitions):
     prot_dict_filtered = remove_outliers(prot_dict, threshold=-7)
     prot_dict_scaled = clean_prot_dict(prot_dict_filtered, smooth=False)
     prot_dict_smooth_scaled = clean_prot_dict(prot_dict_filtered, smooth=True)
+
+    # Filter out invalid profiles
+    prot_dict_smooth_scaled = {
+        protein: profile for protein, profile in prot_dict_smooth_scaled.items()
+        if isinstance(profile, (np.ndarray, list)) and len(profile) > 0 and not np.all(np.isnan(profile))
+        }
 
     # Convert prot_dict_smooth_scaled to a Dask DataFrame
     prot_df = pd.DataFrame({
