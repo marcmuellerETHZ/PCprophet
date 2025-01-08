@@ -238,7 +238,7 @@ def preprocessing(infile, config, tmp_folder):
         features=['correlation_raw', 
                   'correlation_smooth', 
                   'euclidean_distance_smooth',
-                  'max_sliding_window_correlation_raw',
+                  #'max_sliding_window_correlation_raw',
                   'mean_sliding_window_correlation_raw',
                   #'co_peak_gauss',
                   'co_peak_max_smooth'],
@@ -256,7 +256,7 @@ def main():
     features = ['correlation_raw',
                 'correlation_smooth', 
                 'euclidean_distance_smooth',
-                'max_sliding_window_correlation_raw',
+                #'max_sliding_window_correlation_raw',
                 'mean_sliding_window_correlation_raw',
                 #'co_peak_gauss',
                 'co_peak_max_smooth']

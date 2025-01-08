@@ -31,6 +31,8 @@ def train_random_forest(features, features_df_label):
     X = features_df_label[feature_columns].values
     y = features_df_label['Label'].values
 
+    ground_truth_pos = y.sum()/len(y)
+
     # Train random forest classifier
     print(f"Training random forest with features: {feature_columns}")
     clf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
@@ -45,10 +47,15 @@ def train_random_forest(features, features_df_label):
     precision, recall, _ = precision_recall_curve(y_test, y_scores)
     pr_auc = auc(recall, precision)
 
-    df_pr = pd.DataFrame({'Precision': precision, 'Recall': recall})
-    df_roc = pd.DataFrame({'FPR': fpr, 'TPR': tpr})
+    df_pr = pd.DataFrame({'precision': precision, 'recall': recall})
+    df_roc = pd.DataFrame({'fpr': fpr, 'tpr': tpr})
 
-    return df_pr, df_roc, roc_auc, pr_auc
+    df_auc = pd.DataFrame({
+        "obj": ["ROC_AUC", "PR_AUC", "GT_POS"],
+        "value": [roc_auc, pr_auc, ground_truth_pos]
+    })
+
+    return df_pr, df_roc, df_auc
 
 
 def runner(config, features):
@@ -65,19 +72,15 @@ def runner(config, features):
 
     features_df_label['Label'] = features_df_label['db'].astype(int)
 
-    df_pr, df_roc, roc_auc, pr_auc = train_random_forest(features, features_df_label)
+    df_pr, df_roc, df_auc = train_random_forest(features, features_df_label)
 
-    output_folder = os.path.join(config['GLOBAL']['output'], "random_forest_results")
+    output_folder = os.path.join(config['GLOBAL']['temp'], "random_forest_results")
 
     os.makedirs(output_folder, exist_ok=True)
     
-    df_pr.to_csv(os.path.join(output_folder, 'pr_curve.txt'), sep="\t", index=False)
-    df_roc.to_csv(os.path.join(output_folder, 'roc_curve.txt'), sep="\t", index=False)
-
-
-    with open(os.path.join(output_folder, 'metrics.txt'), 'w') as f:
-        f.write(f"ROC AUC: {roc_auc:.4f}\n")
-        f.write(f"PR AUC: {pr_auc:.4f}\n")
+    df_pr.to_csv(os.path.join(output_folder, 'pr_df.txt'), sep="\t", index=False)
+    df_roc.to_csv(os.path.join(output_folder, 'roc_df.txt'), sep="\t", index=False)
+    df_auc.to_csv(os.path.join(output_folder, 'auc_df.txt'), sep="\t", index=False)
     
 
     return True
