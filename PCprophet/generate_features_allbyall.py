@@ -438,7 +438,8 @@ def co_peak_gauss(a_gaussians, b_gaussians):
     mu_a = a_gaussians.get("coefs", {}).get("mu", [])
     mu_b = b_gaussians.get("coefs", {}).get("mu", [])
 
-    if not mu_a or not mu_b:
+    # Ensure 'mu' arrays are valid
+    if mu_a.size == 0 or mu_b.size == 0:
         return np.nan  # Return NaN if no centers are available
 
     # Calculate pairwise absolute differences between centers
