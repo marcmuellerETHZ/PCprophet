@@ -353,22 +353,33 @@ def choose_gaussians(chromatogram, points=None, max_gaussians=5, criterion="AICc
     best_fit_index = np.argmin(criteria)
     return valid_fits[best_fit_index]
 
-# Parallel Gaussian fitting using map_partitions
 def fit_gaussians_partition(partition):
     results = {}
     for _, row in partition.iterrows():
         protein = row['Protein']
         profile = row['Profile']
 
+        # Debugging print statements
+        print(f"Processing protein: {protein}, Profile type: {type(profile)}")
+        print(f"Current results keys: {results.keys()}")
+
         # Validate profile type
         if not isinstance(profile, (np.ndarray, list)) or len(profile) == 0 or np.all(np.isnan(profile)):
-            print(f"Skipping invalid profile for protein: {protein}")
-            results[protein] = None
+            print(f"Skipping invalid profile for protein: {protein}. Profile: {profile}")
+            results[protein] = None  # This line may be causing issues
             continue
 
-        fit_result = choose_gaussians(profile, max_gaussians=5, criterion="BIC")
+        # Perform Gaussian fitting
+        try:
+            fit_result = choose_gaussians(profile, max_gaussians=5, criterion="BIC")
+        except Exception as e:
+            print(f"Error while fitting Gaussians for protein: {protein}. Profile: {profile}. Error: {e}")
+            fit_result = None
+
         results[protein] = fit_result
+
     return pd.DataFrame({'Protein': list(results.keys()), 'GaussianFit': list(results.values())})
+
 
 
 def calc_inv_euclidean_dist(elution_a, elution_b):
