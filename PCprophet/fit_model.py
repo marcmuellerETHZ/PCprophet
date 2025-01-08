@@ -1,11 +1,24 @@
 import sys
 import os
 import pandas as pd
+import numpy as np
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
 
 import PCprophet.io_ as io
+
+def validate_inputs(X, y):
+    if np.any(np.isnan(X)):
+        print("Feature matrix contains NaN values.")
+    if np.any(np.isinf(X)):
+        print("Feature matrix contains infinity values.")
+    if np.any(np.abs(X) > 1e10):
+        print("Feature matrix contains excessively large values.")
+    if np.any(np.isnan(y)):
+        print("Label array contains NaN values.")
+    if np.any(np.isinf(y)):
+        print("Label array contains infinity values.")
 
 def db_to_dict(db):
     ppi_dict = {}
@@ -33,6 +46,8 @@ def fit_logistic_model(features_df_label, feature):
     y = features_df_label['Label'].values
 
     ground_truth_pos = y.sum()/len(y)
+
+    validate_inputs(X, y)
 
     model = LogisticRegression()
     #model = LogisticRegression(penalty=None, class_weigh='balanced', fit_intercept=True, solver='newton-cholesky)
