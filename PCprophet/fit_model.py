@@ -5,6 +5,7 @@ import numpy as np
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
+from sklearn.model_selection import train_test_split
 
 import PCprophet.io_ as io
 
@@ -45,20 +46,19 @@ def fit_logistic_model(features_df_label, feature):
     X = features_df_label[[feature]].values
     y = features_df_label['Label'].values
 
-    ground_truth_pos = y.sum()/len(y)
-
-    validate_inputs(X, y)
+    # Split into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     model = LogisticRegression()
-    #model = LogisticRegression(penalty=None, class_weigh='balanced', fit_intercept=True, solver='newton-cholesky)
-    model.fit(X, y)
+    model.fit(X_train, y_train)
 
-    y_scores = model.predict_proba(X)[:, 1]
-
-    fpr, tpr, _ = roc_curve(y, y_scores)
+    # Evaluate on the test set
+    y_scores = model.predict_proba(X_test)[:, 1]
+    
+    fpr, tpr, _ = roc_curve(y_test, y_scores)
     roc_auc = auc(fpr, tpr)
 
-    precision, recall, _ = precision_recall_curve(y, y_scores)
+    precision, recall, _ = precision_recall_curve(y_test, y_scores)
     pr_auc = auc(recall, precision)
 
     roc_df = pd.DataFrame({
@@ -72,8 +72,8 @@ def fit_logistic_model(features_df_label, feature):
     })
 
     auc_df = pd.DataFrame({
-        "obj": ["ROC_AUC", "PR_AUC", "GT_POS"],
-        "value": [roc_auc, pr_auc, ground_truth_pos]
+        "obj": ["ROC_AUC", "PR_AUC"],
+        "value": [roc_auc, pr_auc]
     })
 
     return roc_df, pr_df, auc_df
