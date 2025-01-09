@@ -25,7 +25,7 @@ def add_ppi(pairs_df, ppi_dict):
     )
     return pairs_df
 
-def train_random_forest(features, features_df_label):
+def train_random_forest(features, features_df_label, output_folder):
     # Define input features and labels
     feature_columns = [col for col in features if col in features_df_label.columns]
     X = features_df_label[feature_columns].values
@@ -39,6 +39,8 @@ def train_random_forest(features, features_df_label):
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     clf.fit(X_train, y_train)
+    joblib.dump(clf, os.path.join(output_folder, 'random_forest_model.pkl'))
+
     y_scores = clf.predict_proba(X_test)[:, 1]
 
     # Calculate metrics
@@ -72,11 +74,10 @@ def runner(config, features):
 
     features_df_label['Label'] = features_df_label['db'].astype(int)
 
-    df_pr, df_roc, df_auc = train_random_forest(features, features_df_label)
-
     output_folder = os.path.join(config['GLOBAL']['temp'], "random_forest_results")
-
     os.makedirs(output_folder, exist_ok=True)
+
+    df_pr, df_roc, df_auc = train_random_forest(features, features_df_label, output_folder)
     
     df_pr.to_csv(os.path.join(output_folder, 'pr_df.txt'), sep="\t", index=False)
     df_roc.to_csv(os.path.join(output_folder, 'roc_df.txt'), sep="\t", index=False)
