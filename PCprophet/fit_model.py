@@ -49,12 +49,16 @@ def fit_logistic_model(features_df_label, feature):
     # Split into training and test sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+    ground_truth_pos = y_test.sum()/len(y_test)
+
+    validate_inputs(X_train, y_train)
+
     model = LogisticRegression()
+    #model = LogisticRegression(penalty=None, class_weigh='balanced', fit_intercept=True, solver='newton-cholesky)
     model.fit(X_train, y_train)
 
-    # Evaluate on the test set
     y_scores = model.predict_proba(X_test)[:, 1]
-    
+
     fpr, tpr, _ = roc_curve(y_test, y_scores)
     roc_auc = auc(fpr, tpr)
 
@@ -72,21 +76,9 @@ def fit_logistic_model(features_df_label, feature):
     })
 
     auc_df = pd.DataFrame({
-        "obj": ["ROC_AUC", "PR_AUC"],
-        "value": [roc_auc, pr_auc]
+        "obj": ["ROC_AUC", "PR_AUC", "GT_POS"],
+        "value": [roc_auc, pr_auc, ground_truth_pos]
     })
-
-    return roc_df, pr_df, auc_df
-
-def wrapper(features_df, db):
-    
-    ppi_dict = db_to_dict(db)
-    
-    features_df_label = add_ppi(features_df, ppi_dict)
-
-    features_df_label['Label'] = features_df_label['db'].astype(int)
-
-    roc_df, pr_df, auc_df = fit_logistic_model(features_df_label)
 
     return roc_df, pr_df, auc_df
 
@@ -100,9 +92,15 @@ def runner(tmp_folder, db, features):
     - db: Path to the database file.
     - features: List of features to process.
     """
-    parent_folder = os.path.abspath(os.path.join(tmp_folder, os.pardir))
+
     features_df_path = os.path.join(tmp_folder, 'pairwise_features.txt')
     features_df = pd.read_csv(features_df_path, sep="\t")
+
+    ppi_dict = db_to_dict(pd.read_csv(db, sep="\t"))
+    
+    features_df_label = add_ppi(features_df, ppi_dict)
+
+    features_df_label['Label'] = features_df_label['db'].astype(int)
 
     # Ensure classifier performance folder exists
     perf_folder = os.path.join(tmp_folder, "classifier_performance_data")
