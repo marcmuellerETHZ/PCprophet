@@ -2,9 +2,12 @@ import sys
 import os
 import pandas as pd
 import numpy as np
+import statsmodels.api as sm
+import joblib
 
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_curve, auc, precision_recall_curve
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, roc_auc_score
 from sklearn.model_selection import train_test_split
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
@@ -35,13 +38,16 @@ def db_to_dict(db):
                         ppi_dict[gene_a].add(gene_b)
     return ppi_dict
 
-# Step 2: Check if a pair exists in CORUM
+
 def add_ppi(pairs_df, ppi_dict):
     pairs_df['db'] = pairs_df.apply(
         lambda row: row['ProteinB'].upper() in ppi_dict.get(row['ProteinA'].upper(), set()),
         axis=1
     )
     return pairs_df
+
+
+
 
 def check_correlation(features_df, features):
     """
@@ -52,8 +58,6 @@ def check_correlation(features_df, features):
     print(correlation_matrix)
     correlation_matrix.to_csv("correlation_matrix.csv", sep="\t")
     return correlation_matrix
-
-
 
 def check_vif(features_df, features):
     """
@@ -71,153 +75,128 @@ def check_vif(features_df, features):
     return vif_data
 
 
-def fit_logistic_model(features_df_label, feature):
-    X = features_df_label[[feature]].values
-    y = features_df_label['Label'].values
 
-    # Split into training and test sets
+
+def train_individual_logistic_regression(X_train, y_train, X_test, y_test, ground_truth_pos, feature, output_folder):
+    """
+    Train a logistic regression model for a single feature and save results.
+    """
+
+    X_train = X_train.reshape(-1, 1)
+    X_test = X_test.reshape(-1, 1)
+
+    model = LogisticRegression(penalty='none', class_weight='balanced', fit_intercept=True, solver='newton-cg')
+    model.fit(X_train, y_train)
+
+    
+    y_scores = model.predict_proba(X_test)[:, 1]
+    fpr, tpr, _ = roc_curve(y_test, y_scores)
+    roc_auc = auc(fpr, tpr)
+    precision, recall, _ = precision_recall_curve(y_test, y_scores)
+    pr_auc = auc(recall, precision)
+
+    # Save results
+    pd.DataFrame({'fpr': fpr, 'tpr': tpr}).to_csv(os.path.join(output_folder, f"{feature}_roc_df.txt"), sep="\t", index=False)
+    pd.DataFrame({'precision': precision, 'recall': recall}).to_csv(os.path.join(output_folder, f"{feature}_pr_df.txt"), sep="\t", index=False)
+    pd.DataFrame({"obj": ["ROC_AUC", "PR_AUC", "GT_POS"], "value": [roc_auc, pr_auc, ground_truth_pos]}).to_csv(
+        os.path.join(output_folder, f"{feature}_auc_df.txt"), sep="\t", index=False
+    )
+
+
+def train_combined_logistic_regression(X_train, y_train, X_test, y_test, ground_truth_pos, features, output_folder):
+    """
+    Train a logistic regression model using all features and save results.
+    """
+    model = LogisticRegression(penalty='none', class_weight='balanced', fit_intercept=True, solver='newton-cg')
+    model.fit(X_train, y_train)
+    
+    y_scores = model.predict_proba(X_test)[:, 1]
+    fpr, tpr, _ = roc_curve(y_test, y_scores)
+    roc_auc = auc(fpr, tpr)
+    precision, recall, _ = precision_recall_curve(y_test, y_scores)
+    pr_auc = auc(recall, precision)
+
+    # Save results
+    pd.DataFrame({'fpr': fpr, 'tpr': tpr}).to_csv(os.path.join(output_folder, "combined_logistic_roc_df.txt"), sep="\t", index=False)
+    pd.DataFrame({'precision': precision, 'recall': recall}).to_csv(os.path.join(output_folder, "combined_logistic_pr_df.txt"), sep="\t", index=False)
+    pd.DataFrame({"obj": ["ROC_AUC", "PR_AUC", "GT_POS"], "value": [roc_auc, pr_auc, ground_truth_pos]}).to_csv(
+        os.path.join(output_folder, "combined_logistic_auc_df.txt"), sep="\t", index=False
+    )
+
+
+def train_random_forest(X_train, y_train, X_test, y_test, ground_truth_pos, features, output_folder):
+    """
+    Train a random forest classifier and save results.
+    """
+    model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+    model.fit(X_train, y_train)
+    joblib.dump(model, os.path.join(output_folder, 'random_forest_model.pkl'))
+
+    no_gt_pos = y_test.sum()
+    no_gt_pos_tot = y_test.sum() + y_train.sum()
+    
+    y_scores = model.predict_proba(X_test)[:, 1]
+    fpr, tpr, _ = roc_curve(y_test, y_scores)
+    roc_auc = roc_auc_score(y_test, y_scores)
+    precision, recall, _ = precision_recall_curve(y_test, y_scores)
+    pr_auc = auc(recall, precision)
+
+    # Save results
+    pd.DataFrame({'fpr': fpr, 'tpr': tpr}).to_csv(os.path.join(output_folder, 'rf_roc_df.txt'), sep="\t", index=False)
+    pd.DataFrame({'precision': precision, 'recall': recall}).to_csv(os.path.join(output_folder, 'rf_pr_df.txt'), sep="\t", index=False)
+    pd.DataFrame({"obj": ["ROC_AUC", "PR_AUC", "GT_POS", "NO_GT_POS", "NO_GT_POS_TOT"], "value": [roc_auc, pr_auc, ground_truth_pos, no_gt_pos, no_gt_pos_tot]}).to_csv(
+        os.path.join(output_folder, 'rf_auc_df.txt'), sep="\t", index=False
+    )
+
+
+def wrapper(features_df, db_file, features, output_folder):
+    """
+    Wrapper for training models with a consistent train/test split.
+    """
+    ppi_dict = db_to_dict(pd.read_csv(db_file, sep="\t"))
+    features_df_label = add_ppi(features_df, ppi_dict)
+    features_df_label['Label'] = features_df_label['db'].astype(int)
+
+    # Train/test split
+    X = features_df_label[features].values
+    y = features_df_label['Label'].values
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     ground_truth_pos = y_test.sum()/len(y_test)
 
-    validate_inputs(X_train, y_train)
-
-    #model = LogisticRegression()
-    model = LogisticRegression(penalty='none', class_weight='balanced', fit_intercept=True, solver='newton-cg')
-    model.fit(X_train, y_train)
-
-    y_scores = model.predict_proba(X_test)[:, 1]
-
-    fpr, tpr, _ = roc_curve(y_test, y_scores)
-    roc_auc = auc(fpr, tpr)
-
-    precision, recall, _ = precision_recall_curve(y_test, y_scores)
-    pr_auc = auc(recall, precision)
-
-    roc_df = pd.DataFrame({
-        "fpr": fpr,
-        "tpr": tpr
-    })
-
-    pr_df = pd.DataFrame({
-        "precision": precision,
-        "recall": recall
-    })
-
-    auc_df = pd.DataFrame({
-        "obj": ["ROC_AUC", "PR_AUC", "GT_POS"],
-        "value": [roc_auc, pr_auc, ground_truth_pos]
-    })
-
-    return roc_df, pr_df, auc_df
-
-def fit_multi_logistic_model(features_df_label, features):
-    """
-    Fit a multiple logistic regression model using all specified features and output model summary.
-    """
-    X = features_df_label[features].values
-    y = features_df_label['Label'].values
-
-    # Split into training and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    ground_truth_pos = y_test.sum() / len(y_test)
-
-    validate_inputs(X_train, y_train)
-
-    model = LogisticRegression(
-        penalty='none', class_weight='balanced', fit_intercept=True, solver='newton-cg'
-    )
-    model.fit(X_train, y_train)
-
-    # Extract model parameters
-    coefficients = model.coef_[0]
-    intercept = model.intercept_[0]
-    feature_importance = pd.DataFrame({
-        'Feature': features,
-        'Coefficient': coefficients
-    })
-
-    # Predict probabilities and calculate performance metrics
-    y_scores = model.predict_proba(X_test)[:, 1]
-    fpr, tpr, _ = roc_curve(y_test, y_scores)
-    roc_auc = auc(fpr, tpr)
-
-    precision, recall, _ = precision_recall_curve(y_test, y_scores)
-    pr_auc = auc(recall, precision)
-
-    roc_df = pd.DataFrame({
-        "fpr": fpr,
-        "tpr": tpr
-    })
-
-    pr_df = pd.DataFrame({
-        "precision": precision,
-        "recall": recall
-    })
-
-    auc_df = pd.DataFrame({
-        "obj": ["ROC_AUC", "PR_AUC", "GT_POS"],
-        "value": [roc_auc, pr_auc, ground_truth_pos]
-    })
-
-    # Print and return model summary
-    print("\nModel Summary:")
-    print(f"Intercept: {intercept}")
-    print("Coefficients:")
-    print(feature_importance)
-
-    return roc_df, pr_df, auc_df, feature_importance, intercept
-
-
-
-def runner(tmp_folder, db, features):
-    """
-    Main runner for logistic regression, including both individual feature regressions 
-    and multi-feature regression.
-    """
-    features_df_path = os.path.join(tmp_folder, 'pairwise_features.txt')
-    features_df = pd.read_csv(features_df_path, sep="\t")
-
-    # Generate labels using database
-    ppi_dict = db_to_dict(pd.read_csv(db, sep="\t"))
-    features_df_label = add_ppi(features_df, ppi_dict)
-    features_df_label['Label'] = features_df_label['db'].astype(int)
-
-    # Ensure classifier performance folder exists
-    perf_folder = os.path.join(tmp_folder, "classifier_performance_data")
-    os.makedirs(perf_folder, exist_ok=True)
-
-    # Step 1: Perform individual logistic regressions
+    # Train individual logistic regressions
     for feature in features:
-        if feature not in features_df_label.columns:
-            print(f"Warning: Feature '{feature}' not found in DataFrame. Skipping...")
-            continue
+        train_individual_logistic_regression(
+            X_train[:, features.index(feature)],
+            y_train,
+            X_test[:, features.index(feature)],
+            y_test,
+            ground_truth_pos,
+            feature,
+            output_folder
+        )
+    
+    # Train combined logistic regression
+    train_combined_logistic_regression(X_train, y_train, X_test, y_test, ground_truth_pos, features, output_folder)
+    
+    # Train random forest
+    train_random_forest(X_train, y_train, X_test, y_test, ground_truth_pos, features, output_folder)
 
-        # Fit individual feature model
-        roc_df, pr_df, auc_df = fit_logistic_model(features_df_label, feature)
 
-        # Save results for each feature
-        feature_folder = os.path.join(perf_folder, feature)
-        os.makedirs(feature_folder, exist_ok=True)
-        roc_df.to_csv(os.path.join(feature_folder, "roc_df.txt"), sep="\t", index=False)
-        pr_df.to_csv(os.path.join(feature_folder, "pr_df.txt"), sep="\t", index=False)
-        auc_df.to_csv(os.path.join(feature_folder, "auc_df.txt"), sep="\t", index=False)
+def runner(config, features):
+    """
+    Runner function to handle input/output operations.
+    """
+    db_file = config['GLOBAL']['db']
+    pairwise_features_file = os.path.join(config['GLOBAL']['temp'], "pairwise_features.txt")
+    features_df = pd.read_csv(pairwise_features_file, sep="\t")
 
-    # Step 2: Perform multi-feature logistic regression
-    roc_df, pr_df, auc_df, feature_importance, intercept = fit_multi_logistic_model(features_df_label, features)
+    output_folder = os.path.join(config['GLOBAL']['temp'], "classifier_performance_data")
 
-    # Save results for multi-feature regression
-    all_features_folder = os.path.join(perf_folder, "all_features_combined")
-    os.makedirs(all_features_folder, exist_ok=True)
+    # Ensure output folder exists
+    os.makedirs(output_folder, exist_ok=True)
 
-    roc_df.to_csv(os.path.join(all_features_folder, "roc_df.txt"), sep="\t", index=False)
-    pr_df.to_csv(os.path.join(all_features_folder, "pr_df.txt"), sep="\t", index=False)
-    auc_df.to_csv(os.path.join(all_features_folder, "auc_df.txt"), sep="\t", index=False)
-    feature_importance.to_csv(os.path.join(all_features_folder, "feature_importance.txt"), sep="\t", index=False)
+    # Call the wrapper
+    wrapper(features_df, db_file, features, output_folder)
 
-    # Save model intercept
-    with open(os.path.join(all_features_folder, "intercept.txt"), "w") as f:
-        f.write(f"Intercept: {intercept}\n")
 
-    return True

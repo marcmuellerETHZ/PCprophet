@@ -1,11 +1,6 @@
 import os
 import matplotlib.pyplot as plt
-import networkx as nx
 import pandas as pd
-import numpy as np
-
-import PCprophet.stats_ as st
-import PCprophet.io_ as io
 
 
 def plot_roc_curve(roc_df, auc_df, output_folder, feature):
@@ -53,21 +48,16 @@ def runner(tmp_fold, out_fold, features):
     - features: List of features to process.
     """
     # Create output directory for plots
-    outf = os.path.join(out_fold, "Plots")
-    if not os.path.isdir(outf):
-        os.makedirs(outf)
+    plots_folder = os.path.join(out_fold, "Plots")
+    os.makedirs(plots_folder, exist_ok=True)
 
-    # Iterate over each feature and generate plots
+    feature_folder = os.path.join(tmp_fold, "classifier_performance_data")
+
+    # Iterate over individual feature results
     for feature in features:
-        feature_folder = os.path.join(tmp_fold, "classifier_performance_data", feature)
-        if not os.path.isdir(feature_folder):
-            print(f"Feature folder not found for {feature}. Skipping...")
-            continue
-
-        # Paths for ROC, PR, and AUC data
-        roc_path = os.path.join(feature_folder, "roc_df.txt")
-        pr_path = os.path.join(feature_folder, "pr_df.txt")
-        auc_path = os.path.join(feature_folder, "auc_df.txt")
+        roc_path = os.path.join(feature_folder, f"{feature}_roc_df.txt")
+        pr_path = os.path.join(feature_folder, f"{feature}_pr_df.txt")
+        auc_path = os.path.join(feature_folder, f"{feature}_auc_df.txt")
 
         if not all(os.path.exists(path) for path in [roc_path, pr_path, auc_path]):
             print(f"Missing data files for {feature}. Skipping...")
@@ -78,11 +68,37 @@ def runner(tmp_fold, out_fold, features):
         pr_df = pd.read_csv(pr_path, sep="\t")
         auc_df = pd.read_csv(auc_path, sep="\t")
 
-        # Generate and save plots
-        plot_roc_curve(roc_df, auc_df, outf, feature)
-        plot_precision_recall_curve(pr_df, auc_df, outf, feature)
+        # Generate plots
+        plot_roc_curve(roc_df, auc_df, plots_folder, feature)
+        plot_precision_recall_curve(pr_df, auc_df, plots_folder, feature)
 
-    feature = "random_forest"
+    # Process random forest results
+    roc_path = os.path.join(feature_folder, "rf_roc_df.txt")
+    pr_path = os.path.join(feature_folder, "rf_pr_df.txt")
+    auc_path = os.path.join(feature_folder, "rf_auc_df.txt")
+
+    if all(os.path.exists(path) for path in [roc_path, pr_path, auc_path]):
+        roc_df = pd.read_csv(roc_path, sep="\t")
+        pr_df = pd.read_csv(pr_path, sep="\t")
+        auc_df = pd.read_csv(auc_path, sep="\t")
+
+        plot_roc_curve(roc_df, auc_df, plots_folder, "random_forest")
+        plot_precision_recall_curve(pr_df, auc_df, plots_folder, "random_forest")
+
+    # Process combined logistic regression results
+    roc_path = os.path.join(feature_folder, "combined_logistic_roc_df.txt")
+    pr_path = os.path.join(feature_folder, "combined_logistic_pr_df.txt")
+    auc_path = os.path.join(feature_folder, "combined_logistic_auc_df.txt")
+
+    if all(os.path.exists(path) for path in [roc_path, pr_path, auc_path]):
+        roc_df = pd.read_csv(roc_path, sep="\t")
+        pr_df = pd.read_csv(pr_path, sep="\t")
+        auc_df = pd.read_csv(auc_path, sep="\t")
+
+        plot_roc_curve(roc_df, auc_df, plots_folder, "combined_logistic")
+        plot_precision_recall_curve(pr_df, auc_df, plots_folder, "combined_logistic")
+
+    feature = "random_forest_seperate_split"
 
     rf_folder = os.path.join(tmp_fold, "random_forest_results")
     roc_path = os.path.join(rf_folder, "roc_df.txt")
@@ -94,22 +110,5 @@ def runner(tmp_fold, out_fold, features):
     auc_df = pd.read_csv(auc_path, sep="\t")
 
     # Generate and save plots
-    plot_roc_curve(roc_df, auc_df, outf, feature)
-    plot_precision_recall_curve(pr_df, auc_df, outf, feature)
-
-    feature = "all_features_combined"
-
-    rf_folder = os.path.join(tmp_fold, "classifier_performance_data", feature)
-    roc_path = os.path.join(rf_folder, "roc_df.txt")
-    pr_path = os.path.join(rf_folder, "pr_df.txt")
-    auc_path = os.path.join(rf_folder, "auc_df.txt")
-
-    roc_df = pd.read_csv(roc_path, sep="\t")
-    pr_df = pd.read_csv(pr_path, sep="\t")
-    auc_df = pd.read_csv(auc_path, sep="\t")
-
-    # Generate and save plots
-    plot_roc_curve(roc_df, auc_df, outf, feature)
-    plot_precision_recall_curve(pr_df, auc_df, outf, feature)
-
-
+    plot_roc_curve(roc_df, auc_df, plots_folder, feature)
+    plot_precision_recall_curve(pr_df, auc_df, plots_folder, feature)

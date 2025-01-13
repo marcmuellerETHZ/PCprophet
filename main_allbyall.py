@@ -266,11 +266,7 @@ def main():
         [preprocessing(infile, config, config['GLOBAL']['temp']) for infile in files]
 
     # in case of multiple samples, insert step to first average features
-    fit_model.runner(
-        config['GLOBAL']['temp'],
-        config['GLOBAL']['db'],
-        features,
-    )
+    fit_model.runner(config, features)
 
     random_forest.runner(config, features)
 
