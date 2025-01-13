@@ -192,7 +192,7 @@ def runner(config, features):
     features_df = pd.read_csv(pairwise_features_file, sep="\t")
 
     output_folder = os.path.join(config['GLOBAL']['temp'], "classifier_performance_data")
-
+    
     # Ensure output folder exists
     os.makedirs(output_folder, exist_ok=True)
 
