@@ -15,7 +15,6 @@ from PCprophet import generate_features_allbyall as generate_features_allbyall
 from PCprophet import plots_allbyall as plots
 from PCprophet import validate_input as validate
 from PCprophet import fit_model
-from PCprophet import random_forest
 
 class ParserHelper(argparse.ArgumentParser):
     def error(self, message):

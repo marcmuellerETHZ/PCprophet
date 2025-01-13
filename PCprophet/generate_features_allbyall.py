@@ -568,6 +568,12 @@ def allbyall_feat(prot_dict, features, npartitions):
 
     results_df = pd.DataFrame(results.tolist())
 
+    # Normalize features (columns excluding identifiers)
+    feature_columns = [col for col in results_df.columns if col not in ["ProteinA", "ProteinB"]]
+    results_df[feature_columns] = (results_df[feature_columns] - results_df[feature_columns].min()) / (
+        results_df[feature_columns].max() - results_df[feature_columns].min()
+    )
+
     # Log feature calculation time
     end_feature_calculation = time.time()
     print(f"Feature calculation completed in {end_feature_calculation - start_feature_calculation:.2f} seconds.")
