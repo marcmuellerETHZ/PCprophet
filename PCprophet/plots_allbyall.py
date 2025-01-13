@@ -97,18 +97,3 @@ def runner(tmp_fold, out_fold, features):
 
         plot_roc_curve(roc_df, auc_df, plots_folder, "combined_logistic")
         plot_precision_recall_curve(pr_df, auc_df, plots_folder, "combined_logistic")
-
-    feature = "random_forest_seperate_split"
-
-    rf_folder = os.path.join(tmp_fold, "random_forest_results")
-    roc_path = os.path.join(rf_folder, "roc_df.txt")
-    pr_path = os.path.join(rf_folder, "pr_df.txt")
-    auc_path = os.path.join(rf_folder, "auc_df.txt")
-
-    roc_df = pd.read_csv(roc_path, sep="\t")
-    pr_df = pd.read_csv(pr_path, sep="\t")
-    auc_df = pd.read_csv(auc_path, sep="\t")
-
-    # Generate and save plots
-    plot_roc_curve(roc_df, auc_df, plots_folder, feature)
-    plot_precision_recall_curve(pr_df, auc_df, plots_folder, feature)
