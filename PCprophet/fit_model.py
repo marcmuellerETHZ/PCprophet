@@ -2,14 +2,12 @@ import sys
 import os
 import pandas as pd
 import numpy as np
-import statsmodels.api as sm
 import joblib
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_curve, auc, precision_recall_curve, roc_auc_score
 from sklearn.model_selection import train_test_split
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 import PCprophet.io_ as io
 
@@ -45,37 +43,6 @@ def add_ppi(pairs_df, ppi_dict):
         axis=1
     )
     return pairs_df
-
-
-
-
-def check_correlation(features_df, features):
-    """
-    Compute and display the correlation matrix for the given features.
-    """
-    correlation_matrix = features_df[features].corr()
-    print("\nFeature Correlation Matrix:")
-    print(correlation_matrix)
-    correlation_matrix.to_csv("correlation_matrix.csv", sep="\t")
-    return correlation_matrix
-
-def check_vif(features_df, features):
-    """
-    Compute and display Variance Inflation Factor (VIF) for the given features.
-    """
-    X = features_df[features]
-    X = sm.add_constant(X)  # Add constant for VIF computation
-    vif_data = pd.DataFrame()
-    vif_data["Feature"] = ["Intercept"] + features
-    vif_data["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
-
-    print("\nVariance Inflation Factor (VIF):")
-    print(vif_data)
-    vif_data.to_csv("vif_data.csv", sep="\t", index=False)
-    return vif_data
-
-
-
 
 def train_individual_logistic_regression(X_train, y_train, X_test, y_test, ground_truth_pos, feature, output_folder):
     """
