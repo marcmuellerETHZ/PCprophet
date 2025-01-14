@@ -95,7 +95,12 @@ def train_random_forest(X_train, y_train, X_test, y_test, ground_truth_pos, feat
     """
     Train a random forest classifier and save results.
     """
-    model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+    model = RandomForestClassifier(random_state=42, 
+                                   n_estimators=50, 
+                                   class_weight='balanced_subsample',
+                                   max_depth=10,
+                                   min_samples_leaf=10
+                                   )
     model.fit(X_train, y_train)
     joblib.dump(model, os.path.join(output_folder, 'random_forest_model.pkl'))
 
